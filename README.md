@@ -451,9 +451,9 @@ makilic@yahoo.com
 
 ## Lisans
 
-Bu paketin kendi kodu (`verbatim.py`, `syllables.py`, `config.json`,
-`rules.json`, `run.sh`, `run.bat`) [GNU General Public License v3.0
-(GPLv3)](LICENSE) ile lisanslanmıştır.
+Bu paketin kendi kodu (`verbatim.py`, `syllables.py`, `convert.py`,
+`config.json`, `rules.json`, `run.sh`, `run.bat`) [GNU General Public
+License v3.0 (GPLv3)](LICENSE) ile lisanslanmıştır.
 
 Üçüncü taraf bileşenler için bkz. [LISANS.txt](LISANS.txt) (İngilizce:
 [LISANS.en.txt](LISANS.en.txt)): Model Apache 2.0 lisanslıdır; espeak-ng

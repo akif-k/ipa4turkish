@@ -9,8 +9,8 @@ ayrica kurulmasi gerekir. Model dosyalari bu paketin icinde, models/
 altinda yerel olarak bulunur (ya da ilk calistirmada otomatik indirilir).
 
 -------------------------------------------------------------------------------
-1) BU PAKETTEKI ipa_verbatim KODU (verbatim.py, syllables.py, config.json,
-   rules.json, run.sh, run.bat)
+1) BU PAKETTEKI ipa_verbatim KODU (verbatim.py, syllables.py, convert.py,
+   config.json, rules.json, run.sh, run.bat)
 -------------------------------------------------------------------------------
 Bu dosyalar bu proje icin ozel olarak yazilmis olup, GNU General Public
 License v3.0 (GPLv3) ile lisanslanmistir. Tam lisans metni icin bkz.

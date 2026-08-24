@@ -468,9 +468,9 @@ makilic@yahoo.com
 
 ## License
 
-This package's own code (`verbatim.py`, `syllables.py`, `config.json`,
-`rules.json`, `run.sh`, `run.bat`) is licensed under the [GNU General
-Public License v3.0 (GPLv3)](LICENSE).
+This package's own code (`verbatim.py`, `syllables.py`, `convert.py`,
+`config.json`, `rules.json`, `run.sh`, `run.bat`) is licensed under the
+[GNU General Public License v3.0 (GPLv3)](LICENSE).
 
 For third-party components, see [LISANS.en.txt](LISANS.en.txt) (Turkish:
 [LISANS.txt](LISANS.txt)): the model is licensed under Apache 2.0;
