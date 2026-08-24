@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
-title: "ipa_verbatim"
+title: "ipa_verbatim: Automated Multi-Tier IPA Transcription and Syllabification for Turkish Speech Recordings"
 abstract: >-
   A Python tool for IPA (International Phonetic Alphabet) verbatim
   transcription: aligns speech audio to IPA phonemes using the
@@ -14,7 +14,7 @@ authors:
     orcid: "https://orcid.org/0000-0003-4482-3490"
 license: GPL-3.0-only
 repository-code: "https://github.com/akif-k/ipa4turkish"
-version: "1.0.1"
+version: "1.0.2"
 date-released: "2026-08-24"
 keywords:
   - phonetics
