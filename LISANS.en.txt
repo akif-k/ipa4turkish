@@ -12,7 +12,9 @@ package, under models/ (or downloaded automatically on first run).
 1) THE ipa_verbatim CODE IN THIS PACKAGE (verbatim.py, syllables.py,
    config.json, rules.json, run.sh, run.bat)
 -------------------------------------------------------------------------------
-These files were written specifically for this project.
+These files were written specifically for this project and are licensed
+under the GNU General Public License v3.0 (GPLv3). See the LICENSE file
+(repo root) for the full license text.
 
 -------------------------------------------------------------------------------
 2) MODEL: facebook/wav2vec2-xlsr-53-espeak-cv-ft  (models/wav2vec2-xlsr-53-espeak-cv-ft/)
@@ -53,16 +55,21 @@ Note     : The Wav2Vec2PhonemeCTCTokenizer requires espeak-ng to be
            in this package on any platform (Linux/macOS/Windows); users
            are expected to install it separately from their own
            operating system (apt/brew, or the official .msi installer
-           on Windows). As a result, this package contains no component
-           distributed under a GPLv3 obligation.
+           on Windows). As a result, no additional GPLv3 source
+           distribution obligation arises from espeak-ng (for the GPLv3
+           license of the package's own code, see Section 1 and the
+           LICENSE file).
 
 -------------------------------------------------------------------------------
 5) SUMMARY / DISTRIBUTION RECOMMENDATION
 -------------------------------------------------------------------------------
 - Keep this LISANS.txt / LISANS.en.txt file with the package when
   sharing ipa_verbatim.
+- This package's own code is licensed under GPLv3 (see LICENSE); GPLv3
+  obligations (providing source code, preserving the license text, etc.)
+  apply to this code.
 - The model (Apache 2.0) carries no extra obligation beyond preserving
   the license text.
 - Since espeak-ng is not included in the package (users install it from
-  their own system), no GPLv3 source/license distribution obligation
-  applies to this package.
+  their own system), no additional GPLv3 obligation arises from
+  espeak-ng.

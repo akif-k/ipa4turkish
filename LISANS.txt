@@ -12,7 +12,9 @@ altinda yerel olarak bulunur (ya da ilk calistirmada otomatik indirilir).
 1) BU PAKETTEKI ipa_verbatim KODU (verbatim.py, syllables.py, config.json,
    rules.json, run.sh, run.bat)
 -------------------------------------------------------------------------------
-Bu dosyalar bu proje icin ozel olarak yazilmistir.
+Bu dosyalar bu proje icin ozel olarak yazilmis olup, GNU General Public
+License v3.0 (GPLv3) ile lisanslanmistir. Tam lisans metni icin bkz.
+LICENSE dosyasi (repo koku).
 
 -------------------------------------------------------------------------------
 2) MODEL: facebook/wav2vec2-xlsr-53-espeak-cv-ft  (models/wav2vec2-xlsr-53-espeak-cv-ft/)
@@ -50,15 +52,19 @@ Not      : Wav2Vec2PhonemeCTCTokenizer, yuklenirken espeak-ng'nin sistemde
            espeak-ng bu pakete hicbir platformda (Linux/macOS/Windows)
            dahil edilmez; kullanicinin kendi isletim sisteminden
            (apt/brew, ya da Windows'ta resmi .msi kurulumu) ayrica
-           kurmasi beklenir. Bu sayede pakette GPLv3 yukumluluguyle
-           dagitilan hicbir bilesen kalmamistir.
+           kurmasi beklenir. Bu sayede espeak-ng'den kaynaklanan ek bir
+           GPLv3 kaynak dagitim yukumlulugu dogmaz (paketin kendi kodunun
+           GPLv3 lisansi icin bkz. Bolum 1 ve LICENSE dosyasi).
 
 -------------------------------------------------------------------------------
 5) OZET / DAGITIM ONERISI
 -------------------------------------------------------------------------------
 - ipa_verbatim'i paylasirken bu LISANS.txt dosyasini pakette tutun.
+- Bu paketin kendi kodu GPLv3 ile lisanslanmistir (bkz. LICENSE); GPLv3
+  yukumlulukleri (kaynak kodun saglanmasi, lisans metninin korunmasi vb.)
+  bu koda uygulanir.
 - Model (Apache 2.0) icin ekstra bir yukumluluk yoktur, sadece lisans
   metninin korunmasi yeterlidir.
 - espeak-ng, pakete dahil edilmedigi (kullanicinin kendi sisteminden
-  kurdugu) icin GPLv3 kaynak/lisans dagitim yukumlulugu bu paket
-  acisindan soz konusu degildir.
+  kurdugu) icin espeak-ng'den kaynaklanan ek bir GPLv3 yukumlulugu
+  soz konusu degildir.
