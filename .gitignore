@@ -1,0 +1,25 @@
+# Model agirliklari (calisma zamaninda otomatik indirilir)
+models/
+
+# Python
+__pycache__/
+*.pyc
+
+# Conda / venv
+.conda/
+venv/
+env/
+
+# Uretilen ciktilar
+tg/*
+txt/*
+details/*
+other_formats/*
+
+# Ornek ses dosyasi haric girdi/ciktilar
+wav/*
+!wav/sample.wav
+
+# OS / editor
+.DS_Store
+*.swp

@@ -1,0 +1,41 @@
+# "verbatim" conda ortamini yeniden olusturmak icin:
+#   conda env create -f environment.yml
+# Ortam zaten varsa guncellemek icin:
+#   conda env update -n verbatim -f environment.yml --prune
+#
+# Not 1: torch, CUDA 12.8 wheel'i ile (NVIDIA GPU) kurulur. GPU yoksa veya
+# farkli bir CUDA surumu gerekiyorsa, once bu dosyadaki pip bolumunden
+# torch satirini cikarip https://pytorch.org/get-started/locally/
+# adresindeki komutla kendi platformunuza uygun surumu kurun.
+#
+# Not 2: Model tokenizer'i (Wav2Vec2PhonemeCTCTokenizer) yuklenirken
+# sistemde kurulu espeak-ng kutuphanesini arar (fiili fonemizasyon icin
+# cagrilmaz, sadece yuklenebilmesi icin zorunludur). Bu yuzden isletim
+# sisteminde espeak-ng'nin ayrica kurulu olmasi gerekir:
+#   Ubuntu/Debian : sudo apt install espeak-ng
+#   macOS (brew)  : brew install espeak-ng
+#   Windows       : https://github.com/espeak-ng/espeak-ng/releases (.msi)
+#                   (bkz. README.md > Platforma ozel notlar)
+#
+# Not 3: ffmpeg, other_formats/ klasorundeki M4A/AAC, MP3, OPUS, AMR, OGG,
+# FLAC ve DSS/DS2 dosyalarini wav'a donustururken (convert.py) kullanilir;
+# conda-forge'dan bu dosyayla birlikte otomatik kurulur, ayrica sistem
+# paketi kurmaya gerek yoktur.
+#
+# Not 4: Bu dosya Windows'ta da (Anaconda Prompt / PowerShell) ayni
+# komutla calisir: conda env create -f environment.yml
+name: verbatim
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - ffmpeg
+  - pip
+  - pip:
+      - --extra-index-url https://download.pytorch.org/whl/cu128
+      - torch
+      - numpy<2.3
+      - transformers
+      - librosa
+      - safetensors
+      - phonemizer

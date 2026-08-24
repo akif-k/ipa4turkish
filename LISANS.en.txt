@@ -1,0 +1,68 @@
+===============================================================================
+ ipa_verbatim - LICENSE AND THIRD-PARTY COMPONENTS
+ (Turkish version: LISANS.txt)
+===============================================================================
+This package runs as a Python application on Linux, macOS, and Windows.
+The runtime is provided via a conda environment named "verbatim" (see
+environment.yml); some dependencies such as espeak-ng and ffmpeg must be
+installed separately. Model files are shipped locally inside this
+package, under models/ (or downloaded automatically on first run).
+
+-------------------------------------------------------------------------------
+1) THE ipa_verbatim CODE IN THIS PACKAGE (verbatim.py, syllables.py,
+   config.json, rules.json, run.sh, run.bat)
+-------------------------------------------------------------------------------
+These files were written specifically for this project.
+
+-------------------------------------------------------------------------------
+2) MODEL: facebook/wav2vec2-xlsr-53-espeak-cv-ft  (models/wav2vec2-xlsr-53-espeak-cv-ft/)
+-------------------------------------------------------------------------------
+License  : Apache License 2.0
+Source   : https://huggingface.co/facebook/wav2vec2-xlsr-53-espeak-cv-ft
+Publisher: Meta AI (Facebook)
+Note     : Apache 2.0 grants free use/modification/distribution,
+           including commercial use; it requires preserving the license
+           text and any notice of changes as a condition. Full license
+           text: https://www.apache.org/licenses/LICENSE-2.0
+
+-------------------------------------------------------------------------------
+3) PACKAGES IN THE "verbatim" CONDA ENVIRONMENT  (torch, transformers,
+   librosa, numpy, safetensors, phonemizer, etc. - environment.yml)
+-------------------------------------------------------------------------------
+These packages are installed from PyPI/conda-forge and mostly carry
+permissive licenses (BSD, MIT, Apache 2.0, etc.). Each package's own
+license text can be found in the environment where that package is
+installed:
+
+  <conda-env>/lib/python3.10/site-packages/<package_name>-<version>.dist-info/
+  (in a LICENSE file, a licenses/ subfolder, or inside METADATA)
+
+These files come automatically with the package; we don't list them
+separately here because there are dozens of packages, but this is the
+source to check.
+
+-------------------------------------------------------------------------------
+4) eSpeak NG (OS package, NOT INCLUDED in this package)
+-------------------------------------------------------------------------------
+License  : GNU General Public License v3.0 (GPLv3)
+Source   : https://github.com/espeak-ng/espeak-ng
+Note     : The Wav2Vec2PhonemeCTCTokenizer requires espeak-ng to be
+           installed on the system in order to load (it is not called
+           for the actual phonemization step, its mere presence is
+           enough for the library to load). espeak-ng is not included
+           in this package on any platform (Linux/macOS/Windows); users
+           are expected to install it separately from their own
+           operating system (apt/brew, or the official .msi installer
+           on Windows). As a result, this package contains no component
+           distributed under a GPLv3 obligation.
+
+-------------------------------------------------------------------------------
+5) SUMMARY / DISTRIBUTION RECOMMENDATION
+-------------------------------------------------------------------------------
+- Keep this LISANS.txt / LISANS.en.txt file with the package when
+  sharing ipa_verbatim.
+- The model (Apache 2.0) carries no extra obligation beyond preserving
+  the license text.
+- Since espeak-ng is not included in the package (users install it from
+  their own system), no GPLv3 source/license distribution obligation
+  applies to this package.

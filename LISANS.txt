@@ -1,0 +1,64 @@
+===============================================================================
+ ipa_verbatim - LISANS VE UCUNCU TARAF BILESENLER
+ (English version: LISANS.en.txt)
+===============================================================================
+Bu paket, Linux, macOS ve Windows uzerinde bir Python uygulamasi olarak
+calisir. Calisma zamani, "verbatim" adli bir conda ortamindan saglanir
+(bkz. environment.yml); espeak-ng ve ffmpeg gibi bazi bagimliliklarin
+ayrica kurulmasi gerekir. Model dosyalari bu paketin icinde, models/
+altinda yerel olarak bulunur (ya da ilk calistirmada otomatik indirilir).
+
+-------------------------------------------------------------------------------
+1) BU PAKETTEKI ipa_verbatim KODU (verbatim.py, syllables.py, config.json,
+   rules.json, run.sh, run.bat)
+-------------------------------------------------------------------------------
+Bu dosyalar bu proje icin ozel olarak yazilmistir.
+
+-------------------------------------------------------------------------------
+2) MODEL: facebook/wav2vec2-xlsr-53-espeak-cv-ft  (models/wav2vec2-xlsr-53-espeak-cv-ft/)
+-------------------------------------------------------------------------------
+Lisans   : Apache License 2.0
+Kaynak   : https://huggingface.co/facebook/wav2vec2-xlsr-53-espeak-cv-ft
+Yayimcı  : Meta AI (Facebook)
+Not      : Apache 2.0, ticari kullanim dahil serbest kullanim/degistirme/
+           dagitim izni verir; kosul olarak lisans metninin ve degisiklik
+           bildiriminin (varsa) korunmasini ister. Tam lisans metni:
+           https://www.apache.org/licenses/LICENSE-2.0
+
+-------------------------------------------------------------------------------
+3) "verbatim" CONDA ORTAMINDAKI PAKETLER  (torch, transformers, librosa,
+   numpy, safetensors, phonemizer, vb. - environment.yml)
+-------------------------------------------------------------------------------
+Bu paketler PyPI/conda-forge'dan kurulur ve cogunlukla izin verici
+(permissive) lisanslara sahiptir (BSD, MIT, Apache 2.0 vb.). Her paketin
+kendi lisans metni, ilgili paketin kurulu oldugu ortamda bulunur:
+
+  <conda-ortami>/lib/python3.10/site-packages/<paket_adi>-<surum>.dist-info/
+  (LICENSE dosyasi, licenses/ alt klasoru veya METADATA icinde)
+
+Bu dosyalar paketle birlikte otomatik olarak gelir; ayrica listelemiyoruz
+cunku onlarca paket var, ama kaynagi burasidir.
+
+-------------------------------------------------------------------------------
+4) eSpeak NG (isletim sistemi paketi, bu pakete DAHIL DEGIL)
+-------------------------------------------------------------------------------
+Lisans   : GNU General Public License v3.0 (GPLv3)
+Kaynak   : https://github.com/espeak-ng/espeak-ng
+Not      : Wav2Vec2PhonemeCTCTokenizer, yuklenirken espeak-ng'nin sistemde
+           kurulu olmasini zorunlu kilar (fiili fonemizasyon icin
+           cagrilmaz, sadece kutuphanenin bulunabilir olmasi yeterlidir).
+           espeak-ng bu pakete hicbir platformda (Linux/macOS/Windows)
+           dahil edilmez; kullanicinin kendi isletim sisteminden
+           (apt/brew, ya da Windows'ta resmi .msi kurulumu) ayrica
+           kurmasi beklenir. Bu sayede pakette GPLv3 yukumluluguyle
+           dagitilan hicbir bilesen kalmamistir.
+
+-------------------------------------------------------------------------------
+5) OZET / DAGITIM ONERISI
+-------------------------------------------------------------------------------
+- ipa_verbatim'i paylasirken bu LISANS.txt dosyasini pakette tutun.
+- Model (Apache 2.0) icin ekstra bir yukumluluk yoktur, sadece lisans
+  metninin korunmasi yeterlidir.
+- espeak-ng, pakete dahil edilmedigi (kullanicinin kendi sisteminden
+  kurdugu) icin GPLv3 kaynak/lisans dagitim yukumlulugu bu paket
+  acisindan soz konusu degildir.
