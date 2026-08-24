@@ -2,7 +2,7 @@
 
 [English](README.en.md) | Turkce
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22081833.svg)](https://doi.org/10.5281/zenodo.22081833)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22081832.svg)](https://doi.org/10.5281/zenodo.22081832)
 
 `facebook/wav2vec2-xlsr-53-espeak-cv-ft` modeli ile ses dosyalarini IPA
 (Uluslararasi Fonetik Alfabe) sembolleriyle hizalayan bir Python komut

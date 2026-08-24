@@ -2,7 +2,7 @@
 
 [Turkce](README.md) | English
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22081833.svg)](https://doi.org/10.5281/zenodo.22081833)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22081832.svg)](https://doi.org/10.5281/zenodo.22081832)
 
 A Python command-line application that aligns audio files to IPA
 (International Phonetic Alphabet) symbols using the
