@@ -468,12 +468,14 @@ makilic@yahoo.com
 
 ## License
 
-See [LISANS.en.txt](LISANS.en.txt) (Turkish: [LISANS.txt](LISANS.txt)).
-The model is licensed under Apache 2.0;
-this package's own code (`verbatim.py`, `syllables.py`, `config.json`,
-`rules.json`, `run.sh`, `run.bat`) was written specifically for this
-project. espeak-ng (GPLv3) is not included in the package, users are
-expected to install it separately from their own operating system.
+This package's own code (`verbatim.py`, `syllables.py`, `config.json`,
+`rules.json`, `run.sh`, `run.bat`) is licensed under the [GNU General
+Public License v3.0 (GPLv3)](LICENSE).
+
+For third-party components, see [LISANS.en.txt](LISANS.en.txt) (Turkish:
+[LISANS.txt](LISANS.txt)): the model is licensed under Apache 2.0;
+espeak-ng (GPLv3) is not included in this package, users are expected to
+install it separately from their own operating system.
 
 ## Alternative setup: Praat plugin package
 
