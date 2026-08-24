@@ -36,7 +36,8 @@ ipa_verbatim/
 ├── environment.yml                    "verbatim" conda ortamini olusturmak icin
 ├── run.sh                             conda ortamini etkinlestirip verbatim.py'yi calistiran kisayol (Linux/macOS)
 ├── run.bat                            ayni kisayolun Windows karsiligi
-├── LISANS.txt / LISANS.en.txt         lisans ve ucuncu taraf bilesenler (Turkce / Ingilizce)
+├── LICENSE                            bu paketin kendi kodunun lisansi (GPLv3)
+├── THIRD-PARTY-NOTICES.txt            ucuncu taraf bilesenlerin lisans bilgisi (Ingilizce)
 ├── README.md / README.en.md           bu belge (Turkce / Ingilizce)
 ├── models/                            model dosyalari icin klasor (girdi, bos; ilk calistirmada
 │                                       wav2vec2-xlsr-53-espeak-cv-ft/ alt klasoruyle otomatik doldurulur,
@@ -455,10 +456,10 @@ Bu paketin kendi kodu (`verbatim.py`, `syllables.py`, `convert.py`,
 `config.json`, `rules.json`, `run.sh`, `run.bat`) [GNU General Public
 License v3.0 (GPLv3)](LICENSE) ile lisanslanmıştır.
 
-Üçüncü taraf bileşenler için bkz. [LISANS.txt](LISANS.txt) (İngilizce:
-[LISANS.en.txt](LISANS.en.txt)): Model Apache 2.0 lisanslıdır; espeak-ng
-(GPLv3) pakete dahil değildir, kullanıcının kendi işletim sisteminden
-ayrıca kurması beklenir.
+Üçüncü taraf bileşenler için bkz.
+[THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) (İngilizce): Model
+Apache 2.0 lisanslıdır; espeak-ng (GPLv3) pakete dahil değildir,
+kullanıcının kendi işletim sisteminden ayrıca kurması beklenir.
 
 ## Alternatif kurulum: Praat plugin paketi
 

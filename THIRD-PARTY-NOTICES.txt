@@ -1,6 +1,5 @@
 ===============================================================================
- ipa_verbatim - LICENSE AND THIRD-PARTY COMPONENTS
- (Turkish version: LISANS.txt)
+ ipa_verbatim - THIRD-PARTY NOTICES
 ===============================================================================
 This package runs as a Python application on Linux, macOS, and Windows.
 The runtime is provided via a conda environment named "verbatim" (see
@@ -63,8 +62,8 @@ Note     : The Wav2Vec2PhonemeCTCTokenizer requires espeak-ng to be
 -------------------------------------------------------------------------------
 5) SUMMARY / DISTRIBUTION RECOMMENDATION
 -------------------------------------------------------------------------------
-- Keep this LISANS.txt / LISANS.en.txt file with the package when
-  sharing ipa_verbatim.
+- Keep this THIRD-PARTY-NOTICES.txt file with the package when sharing
+  ipa_verbatim.
 - This package's own code is licensed under GPLv3 (see LICENSE); GPLv3
   obligations (providing source code, preserving the license text, etc.)
   apply to this code.

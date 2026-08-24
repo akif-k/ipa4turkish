@@ -35,7 +35,8 @@ ipa_verbatim/
 ├── environment.yml                    to create the "verbatim" conda environment
 ├── run.sh                             shortcut that activates the conda environment and runs verbatim.py (Linux/macOS)
 ├── run.bat                            the same shortcut for Windows
-├── LISANS.txt / LISANS.en.txt         license and third-party components (Turkish / English)
+├── LICENSE                            this package's own code license (GPLv3)
+├── THIRD-PARTY-NOTICES.txt            third-party components license info
 ├── README.md / README.en.md           this document (Turkish / English)
 ├── models/                            folder for model files (input, empty; automatically filled on
 │                                       first run with the wav2vec2-xlsr-53-espeak-cv-ft/ subfolder,
@@ -472,10 +473,11 @@ This package's own code (`verbatim.py`, `syllables.py`, `convert.py`,
 `config.json`, `rules.json`, `run.sh`, `run.bat`) is licensed under the
 [GNU General Public License v3.0 (GPLv3)](LICENSE).
 
-For third-party components, see [LISANS.en.txt](LISANS.en.txt) (Turkish:
-[LISANS.txt](LISANS.txt)): the model is licensed under Apache 2.0;
-espeak-ng (GPLv3) is not included in this package, users are expected to
-install it separately from their own operating system.
+For third-party components, see
+[THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt): the model is
+licensed under Apache 2.0; espeak-ng (GPLv3) is not included in this
+package, users are expected to install it separately from their own
+operating system.
 
 ## Alternative setup: Praat plugin package
 
