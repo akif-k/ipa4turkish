@@ -2,6 +2,8 @@
 
 [Turkce](README.md) | English
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22081833.svg)](https://doi.org/10.5281/zenodo.22081833)
+
 A Python command-line application that aligns audio files to IPA
 (International Phonetic Alphabet) symbols using the
 `facebook/wav2vec2-xlsr-53-espeak-cv-ft` model. The model is downloaded

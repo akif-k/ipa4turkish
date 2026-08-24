@@ -2,6 +2,8 @@
 
 [English](README.en.md) | Turkce
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22081833.svg)](https://doi.org/10.5281/zenodo.22081833)
+
 `facebook/wav2vec2-xlsr-53-espeak-cv-ft` modeli ile ses dosyalarini IPA
 (Uluslararasi Fonetik Alfabe) sembolleriyle hizalayan bir Python komut
 satiri uygulamasi. Model ilk kullanimda `models/` klasorune indirilir,
