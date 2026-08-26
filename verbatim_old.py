@@ -34,7 +34,7 @@ import argparse
 import glob
 import os
 import sys
-
+import gc
 import numpy as np
 import torch
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
@@ -66,13 +66,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ZERO_CROSSING_SEARCH_SEC = 0.005
 
 DEFAULT_CHUNK_GAP_THRESHOLDS_MS = [40, 60, 80, 100, 120]
-
-# Modele tek seferde verilen ses uzunlugu (saniye). Wav2Vec2'nin kendi
-# transformer'i self-attention nedeniyle uzun seslerde bellegi karesel
-# olarak sisirip cok/uzun kayitlarda cokmeye (OOM) yol aciyordu; ses bu
-# sinirin uzerindeyse modele parca parca verilip logit'ler sonradan
-# zaman ekseninde birlestiriliyor, geri kalan pipeline degismiyor.
-MODEL_CHUNK_DURATION_SEC = 60.0
 
 MODEL_REPO_ID = "facebook/wav2vec2-xlsr-53-espeak-cv-ft"
 MODEL_FILE_PATTERNS = [
@@ -329,24 +322,6 @@ def write_textgrid(path, audio_duration, all_tiers):
         f.write("\n".join(tg_lines))
 
 
-def compute_logits(speech_array, sr, processor, model, device):
-    chunk_samples = int(MODEL_CHUNK_DURATION_SEC * sr)
-    if len(speech_array) <= chunk_samples:
-        input_values = processor(speech_array, sampling_rate=sr, return_tensors="pt").input_values
-        input_values = input_values.to(device)
-        with torch.no_grad():
-            return model(input_values).logits
-
-    logits_chunks = []
-    for start in range(0, len(speech_array), chunk_samples):
-        chunk = speech_array[start:start + chunk_samples]
-        input_values = processor(chunk, sampling_rate=sr, return_tensors="pt").input_values
-        input_values = input_values.to(device)
-        with torch.no_grad():
-            logits_chunks.append(model(input_values).logits)
-    return torch.cat(logits_chunks, dim=1)
-
-
 def load_audio(audio_path):
     if librosa is not None:
         speech_array, sr = librosa.load(audio_path, sr=16000)
@@ -432,7 +407,10 @@ def main():
         speech_array, sr = load_audio(audio_path)
         audio_duration = len(speech_array) / sr
 
-        logits = compute_logits(speech_array, sr, processor, model, device)
+        input_values = processor(speech_array, sampling_rate=16000, return_tensors="pt").input_values
+        input_values = input_values.to(device)
+        with torch.no_grad():
+            logits = model(input_values).logits
 
         predicted_ids = torch.argmax(logits, dim=-1)
         transcription = processor.batch_decode(predicted_ids)[0]
@@ -524,6 +502,10 @@ def main():
 
         write_textgrid(output_textgrid_path, audio_duration, all_tiers)
 
+        # GPU Belleğini her dosyadan sonra temizleyen kısım:
+        del input_values, logits, logits_frame, probabilities, top_probs, top_indices, speech_array
+        gc.collect()
+        torch.cuda.empty_cache()
         print_progress(idx, total, file_name)
 
     print("\nIslem tamamlandi: TextGrid dosyalari 'tg', fonem tablolari 'txt', ayrintili olasiliklar 'details' klasorunde.")
