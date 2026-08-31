@@ -1,0 +1,78 @@
+Zenodo Deposit Metadata — ipa_verbatim
+=======================================
+(Bu dosya, Zenodo'da yeni bir surum (deposit) olustururken formdaki
+alanlara kopyala-yapistir yapmak icin hazirlanmistir. Repo'nun kendisi
+degil, Zenodo web formuna girilecek metaveridir.)
+
+Upload type
+-----------
+Software
+
+Title
+-----
+ipa_verbatim: Automated Multi-Tier IPA Transcription and Syllabification for Turkish Speech Recordings
+
+Authors
+-------
+Name: Kılıç, Mehmet Akif
+ORCID: 0000-0003-4482-3490
+Affiliation: (bos birakilabilir / opsiyonel)
+
+Description
+-----------
+<p>A Python command-line application that aligns speech audio files to
+IPA (International Phonetic Alphabet) symbols using the
+<code>facebook/wav2vec2-xlsr-53-espeak-cv-ft</code> model, and derives a
+rule-based syllables tier from the resulting phoneme alignment.</p>
+
+<p>For each input <code>.wav</code> file, the tool produces a phoneme
+text file (IPA symbols), a multi-tier Praat TextGrid, and a
+frame-level probability table. Audio files in other common formats
+(M4A/AAC, MP3, OPUS, AMR, OGG, FLAC, DSS/DS2, WMA, 3GP/3GPP, CAF) are
+automatically converted to 16 kHz / 16-bit / mono PCM WAV before
+processing. Runs on Linux, macOS, and Windows, with optional GPU
+acceleration (CUDA / Apple Silicon MPS).</p>
+
+<p>Gelistirici not: Turkce konusma kayitlarindan otomatik, cok
+katmanli IPA transkripsiyonu ve heceleme uretmek icin gelistirilmis
+bir komut satiri araci.</p>
+
+Version
+-------
+1.0.2
+
+Language
+--------
+eng (dokumantasyon Turkce ve Ingilizce olarak saglanmistir / documentation provided in Turkish and English)
+
+License
+-------
+GPL-3.0-only (GNU General Public License v3.0 only)
+
+Keywords
+--------
+phonetics
+IPA
+forced alignment
+speech processing
+wav2vec2
+syllabification
+Turkish
+speech-to-text
+computational linguistics
+
+Related / alternate identifiers
+--------------------------------
+is supplement to -> https://github.com/akif-k/ipa4turkish (URL)
+cites            -> https://huggingface.co/facebook/wav2vec2-xlsr-53-espeak-cv-ft (URL)
+
+Grants / funding
+-----------------
+(yok / none)
+
+Notlar
+------
+- Concept DOI (her surumde ayni kalir): 10.5281/zenodo.22081832
+- Bu surume ozel DOI, Zenodo yeni deposit olustururken otomatik atanir.
+- Yayin tarihi: 2026-08-24
+- Repo: https://github.com/akif-k/ipa4turkish
