@@ -492,3 +492,8 @@ requires an internet connection, but once it's installed you won't
 need to separately install espeak-ng/ffmpeg/Python packages):
 
 https://drive.google.com/drive/folders/0B4QKykn2bzqQa0JQRTZtU08yZWs?resourcekey=0-kYz6XS59uRJCKj4YuhaqhQ
+
+## Development note
+
+Anthropic's Claude Code was used to assist with code writing and
+documentation during the development of this project.
