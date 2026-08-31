@@ -474,3 +474,8 @@ gerekir, ancak kurulduktan sonra ayrica espeak-ng/ffmpeg/Python paketi
 kurmaniz gerekmez):
 
 https://drive.google.com/drive/folders/0B4QKykn2bzqQa0JQRTZtU08yZWs?resourcekey=0-kYz6XS59uRJCKj4YuhaqhQ
+
+## Gelistirme Notu
+
+Bu projenin gelistirilmesinde, kod yazimi ve dokumantasyon calismalarina
+destek olarak Anthropic'in Claude Code araci kullanilmistir.
