@@ -123,8 +123,11 @@ The `models/` folder ships empty with this package. The first time
 `preprocessor_config.json`, `special_tokens_map.json` from the Hugging
 Face Hub (`facebook/wav2vec2-xlsr-53-espeak-cv-ft`) into
 `models/wav2vec2-xlsr-53-espeak-cv-ft/` — this requires an internet
-connection. On subsequent runs this folder is already populated, so it
-is not downloaded again.
+connection. On subsequent runs all required files (including the
+weights) are already in this folder, so nothing is downloaded and no
+network access is needed. If one of them is missing (e.g. after an
+interrupted download), the program lists the missing files and downloads
+the model again.
 
 If you copy the downloaded model folder
 (`models/wav2vec2-xlsr-53-espeak-cv-ft/`) to another computer and place

@@ -86,12 +86,43 @@ MODEL_FILE_PATTERNS = [
 ]
 
 
+# Modelin yuklenebilmesi icin model klasorunde bulunmasi ZORUNLU dosyalar.
+# Agirlik dosyasi icin iki bicimden (safetensors / bin) biri yeterlidir.
+MODEL_REQUIRED_FILES = [
+    "config.json",
+    "vocab.json",
+    "tokenizer_config.json",
+    "preprocessor_config.json",
+]
+MODEL_WEIGHT_FILES = ["model.safetensors", "pytorch_model.bin"]
+
+
+def missing_model_files(model_dir):
+    """Model klasorunde eksik (ya da bos) olan zorunlu dosyalarin listesini
+    dondurur; liste bossa model eksiksizdir."""
+    def present(name):
+        path = os.path.join(model_dir, name)
+        return os.path.isfile(path) and os.path.getsize(path) > 0
+
+    missing = [name for name in MODEL_REQUIRED_FILES if not present(name)]
+    if not any(present(name) for name in MODEL_WEIGHT_FILES):
+        missing.append(" veya ".join(MODEL_WEIGHT_FILES))
+    return missing
+
+
 def ensure_model(model_dir):
-    """Model, verilen konumda bulunamazsa Hugging Face Hub'dan indirir."""
-    if os.path.isdir(model_dir) and os.path.exists(os.path.join(model_dir, "config.json")):
+    """Model, verilen konumda eksiksiz bulunursa internete baglanilmadan
+    kullanilir; klasor yoksa ya da zorunlu dosyalardan biri eksikse (orn.
+    yarida kalmis bir indirme) model Hugging Face Hub'dan indirilir."""
+    missing = missing_model_files(model_dir)
+    if not missing:
         return
 
-    print(f"Model bulunamadi: {model_dir}")
+    if os.path.isdir(model_dir) and len(missing) < len(MODEL_REQUIRED_FILES) + 1:
+        print(f"Model klasoru eksik: {model_dir}")
+        print(f"Eksik dosya(lar): {', '.join(missing)}")
+    else:
+        print(f"Model bulunamadi: {model_dir}")
     print(f"Hugging Face Hub'dan indiriliyor: {MODEL_REPO_ID}")
     os.makedirs(model_dir, exist_ok=True)
 
@@ -109,8 +140,12 @@ def ensure_model(model_dir):
             f"Internet baglantinizi kontrol edin veya modeli elle su konuma yerlestirin: {model_dir}"
         )
 
-    if not os.path.exists(os.path.join(model_dir, "config.json")):
-        sys.exit(f"HATA: Model indirildi ama beklenen dosyalar eksik: {model_dir}")
+    missing = missing_model_files(model_dir)
+    if missing:
+        sys.exit(
+            f"HATA: Model indirildi ama beklenen dosyalar eksik: {model_dir}\n"
+            f"Eksik dosya(lar): {', '.join(missing)}"
+        )
 
     print("Model indirildi.")
 

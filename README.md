@@ -123,8 +123,11 @@ calistirildiginda, `config.json`, `model.safetensors` (~1.2 GB),
 `special_tokens_map.json` dosyalarini Hugging Face Hub'dan
 (`facebook/wav2vec2-xlsr-53-espeak-cv-ft`) otomatik olarak
 `models/wav2vec2-xlsr-53-espeak-cv-ft/` altina indirir — bunun icin
-internet baglantisi gerekir. Sonraki calistirmalarda bu klasor dolu
-bulundugundan tekrar indirme yapilmaz.
+internet baglantisi gerekir. Sonraki calistirmalarda zorunlu dosyalarin
+hepsi (agirlik dosyasi dahil) klasorde bulundugundan tekrar indirme
+yapilmaz ve internete baglanilmaz. Dosyalardan biri eksikse (orn. yarida
+kalmis bir indirme), program eksik dosyalari listeler ve modeli yeniden
+indirir.
 
 Indirilen model klasorunu (`models/wav2vec2-xlsr-53-espeak-cv-ft/`)
 baska bir bilgisayara kopyalayip oradaki ayni konuma yerlestirirseniz, o
