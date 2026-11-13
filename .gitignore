@@ -23,3 +23,7 @@ wav/*
 # OS / editor
 .DS_Store
 *.swp
+
+# Yerel/gelistirici dosyalari (depoya dahil edilmez)
+CLAUDE.md
+zenodo.txt
