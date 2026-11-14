@@ -49,6 +49,9 @@ if "%STATUS%"=="0" (
     REM explorer.exe basariyla actiginda bile bazen sifirdan farkli bir
     REM kod dondurebilir; bu yuzden cikis kodu kontrol edilmez.
     start "" explorer "%SCRIPT_DIR%"
+) else if "%STATUS%"=="3" (
+    REM Kullanici pencerede "Iptal et" / "Durdur" dedi; hata degil.
+    exit /b 0
 ) else (
     echo.
     echo Islem hata ile sonlandi ^(cikis kodu %STATUS%^).

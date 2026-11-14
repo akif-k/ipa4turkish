@@ -31,6 +31,9 @@ formatlari](#desteklenen-ses-formatlari)).
 ```
 ipa_verbatim/
 ├── verbatim.py                        asil uygulama
+├── gui.py                             pencere: ayarlar (tier, aday sayisi, Whisper) ve islem durumu
+├── whisper_tier.py                    istege bagli whisper tier'i (OpenAI Whisper large-v3); yalnizca
+│                                       whisper tier'i secildiginde yuklenir
 ├── syllables.py                       hold tier'inden rules.json'a gore syllables tier'i ureten modul
 ├── convert.py                         other_formats/ -> wav/ format donusumu (ffmpeg ile)
 ├── config.json                        fonem eslestirme / filtreleme ve TextGrid ayarlari
@@ -49,7 +52,10 @@ ipa_verbatim/
 ├── other_formats/                     farkli formatlardaki ses dosyalarinin konuldugu klasor (girdi, opsiyonel, bos)
 ├── tg/                                uretilen TextGrid dosyalari (cikti, bos)
 ├── txt/                               uretilen fonem metinleri (cikti, bos)
-└── details/                           kare-bazli olasilik tablolari (cikti, bos)
+├── details/                           kare-bazli olasilik tablolari (cikti, bos)
+└── whisper/                           Whisper ciktilari (whisper tier'i secildiginde olusturulur)
+    ├── tg/                            yalnizca whisper tier'ini iceren TextGrid'ler
+    └── txt/                           Whisper metni, duz metin
 ```
 
 ## Kurulum
@@ -69,6 +75,12 @@ ipa_verbatim/
   # macOS (Homebrew)
   brew install espeak-ng
   ```
+
+  macOS'ta `verbatim.py`, `libespeak-ng.dylib`'i Homebrew
+  (`/opt/homebrew/lib`, `/usr/local/lib`), MacPorts (`/opt/local/lib`) ve
+  conda ortaminin `lib` klasorunde kendisi arar ve
+  `PHONEMIZER_ESPEAK_LIBRARY` ortam degiskenini ayarlar. Baska bir yere
+  kurduysaniz bu degiskeni elle tanimlayin.
 
   Windows icin bkz. [Platforma ozel notlar](#platforma-ozel-notlar).
 
@@ -96,6 +108,12 @@ yoktur:
 | `safetensors` | model agirliklarinin (`model.safetensors`) yuklenmesi |
 | `phonemizer` | tokenizer'in yuklenmesi icin gereken espeak-ng baglayicisi |
 | `numpy` | dizi/sayisal islemler |
+| `openai-whisper` | istege bagli `whisper` tier'i (OpenAI Whisper large-v3); yalnizca bu tier secildiginde kullanilir |
+| `scipy` | `whisper` tier'i icin bolme noktasi aramasinda 80-1000 Hz band-pass filtre |
+
+`tkinter` (ayar penceresi) Python ile birlikte gelir. Bulunamazsa (orn.
+ekransiz bir sunucuda) program pencereyi atlayip komut satiri
+ayarlariyla devam eder.
 
 ### 3) "verbatim" conda ortamini olustur
 
@@ -136,6 +154,13 @@ kalani — conda ortami, espeak-ng, ffmpeg gibi bagimliliklar — yine de o
 bilgisayarda ayrica ve internet baglantisiyla kurulmalidir, bkz.
 [Kurulum](#kurulum).)
 
+**Whisper modeli (istege bagli).** `whisper` tier'i secilmedigi surece
+Whisper modeli ne yuklenir ne de indirilir. Secildiginde
+`models/whisper-large-v3/large-v3.pt` (~3 GB) aranir; yoksa OpenAI'nin
+resmi adresinden indirilir (`openai-whisper` paketi dosyayi SHA256 ile
+dogrular). Indirilen `models/whisper-large-v3/` klasoru de baska bir
+bilgisayara kopyalanabilir.
+
 ## Kullanim
 
 1. Islenecek `.wav` dosyalarini `wav/` klasorune koyun. `wav/`
@@ -168,11 +193,52 @@ bilgisayarda ayrica ve internet baglantisiyla kurulmalidir, bkz.
    python verbatim.py
    ```
 
-3. Sonuclar `tg/`, `txt/` ve `details/` klasorlerine yazilir; ilerleme
-   terminalde bir ilerleme cubugu ile gosterilir.
-4. `run.sh` / `run.bat` ile calistirildiginda, islem hatasiz tamamlaninca
+3. Bir pencere acilir (bkz. [Ayar penceresi](#ayar-penceresi)). **Devam
+   et** secilen ayarlarla islemi baslatir; pencere acik kalir ve sagdaki
+   **Islem durumu** panelinde ilerlemeyi gosterir. **Iptal et** islem
+   baslamadan pencereyi kapatir.
+4. Sonuclar `tg/`, `txt/` ve `details/` klasorlerine (whisper tier'i
+   secildiyse ayrica `whisper/tg/` ve `whisper/txt/` klasorlerine) yazilir; ilerleme terminalde
+   bir ilerleme cubugu ile gosterilir.
+5. `run.sh` / `run.bat` ile calistirildiginda, islem hatasiz tamamlaninca
    `ipa_verbatim` klasoru dosya yoneticisinde otomatik olarak acilir
    (`python verbatim.py` ile dogrudan calistirirsaniz bu olmaz).
+
+### Ayar penceresi
+
+- **Tier'lar:** TextGrid'e yazilacak tier'lar isaretlenir (bkz. [Cikti
+  formati](#cikti-formati)). Varsayilan olarak `hold`, `prob1-3`,
+  `syllables` ve `whisper` seciktir; `segments` ve `chunks1-N` secili
+  degildir. `whisper` secili oldugu icin ilk calistirmada Whisper modeli
+  (~3 GB) iner; istemiyorsaniz isaretini kaldirin.
+- **details/ olasilik (aday) sayisi:** `details/` dosyasinda her 20 ms'lik
+  kare icin yazilan en olasi aday sayisi (varsayilan 3, en cok 20).
+  `prob` tier'lari en fazla bu sayi kadar olabilir (sayi 2 ise `prob3`
+  secilemez).
+- **Whisper ayarlari:** yalnizca `whisper` tier'i isaretliyse etkinlesir
+  (bkz. [Whisper tier'i](#whisper-tieri)).
+- **Aciklamalar:** imleci bir tier'in, alanin ya da kutunun uzerinde
+  yarim saniye tutunca ayrintili aciklamasi kucuk bir pencerede acilir.
+- **TR / EN (sag ustte):** pencerenin dili. Secim `gui_settings.json`
+  dosyasinda hatirlanir. Islem gunlugundeki program ciktilari Turkce
+  kalir; asama satirlari secilen dilde yazilir.
+- **Islem durumu (sagda):** o anki asama (orn. model yukleniyor, fonem
+  olasiliklari hesaplaniyor, Whisper parca 2/5), uzerinde calisilan dosya
+  ve sirasi, dosya ilerleme cubugu ve islem gunlugu.
+- Islem sirasinda ayarlar kilitlenir; **Iptal et** dugmesi **Durdur**
+  olur ve islemi o anki adim bitince durdurur. Islem bitince **Kapat**
+  dugmesi cikar.
+
+Pencereyi acmadan calistirmak icin (orn. ekransiz bir sunucuda):
+
+```bash
+python verbatim.py --no-gui --tiers hold,syllables,whisper --top-k 5 \
+  --whisper-min 10 --whisper-max 15 --long-pause-ms 250 --short-pause-ms 50 \
+  --language tr          # --no-padding ile padding kapatilir
+```
+
+`--tiers` verilmezse pencerenin varsayilan secimi kullanilir (`hold`,
+`prob1-3`, `syllables`, `whisper`).
 
 ### Masaustu kisayolu
 
@@ -208,7 +274,9 @@ python verbatim.py \
   --tg-dir /baska/yol/tg \
   --txt-dir /baska/yol/txt \
   --details-dir /baska/yol/details \
+  --whisper-dir /baska/yol/whisper \
   --model-dir /baska/yol/models/wav2vec2-xlsr-53-espeak-cv-ft \
+  --whisper-model-dir /baska/yol/models/whisper-large-v3 \
   --config /baska/yol/config.json \
   --rules /baska/yol/rules.json \
   --device cpu   # veya cuda, cuda:0, mps ... (varsayilan: otomatik algila)
@@ -254,10 +322,12 @@ zaten destekliyorsa baska bir degisiklik gerekmez.
 
 **`txt/<dosya>.txt`** — modelin ürettigi fonem dizisi, tek satir.
 
-**`tg/<dosya>.TextGrid`** — Praat TextGrid'i; 6 sabit tier + `config.json`
-icindeki `chunk_gap_thresholds_ms` listesinin uzunlugu kadar `chunks`
-tier'i icerir (bu depodaki mevcut `config.json` ile 3 esik → toplam 9
-tier; esik sayisi degistirilerek tier sayisi ayarlanabilir):
+**`tg/<dosya>.TextGrid`** — Praat TextGrid'i; ayar penceresinde secilen
+tier'lari asagidaki sirayla icerir. Hepsi secildiginde: 6 sabit tier +
+`config.json` icindeki `chunk_gap_thresholds_ms` listesinin uzunlugu
+kadar `chunks` tier'i (bu depodaki mevcut `config.json` ile 3 esik → 9
+tier; esik sayisi degistirilerek tier sayisi ayarlanabilir) + en sonda
+istege bagli `whisper`:
 
 | Tier | Aciklama |
 |---|---|
@@ -265,14 +335,55 @@ tier; esik sayisi degistirilerek tier sayisi ayarlanabilir):
 | `prob1` / `prob2` / `prob3` | her karede en yuksek 3 aday fonem icin ayri tier'lar |
 | `segments` | ham kare-bazli en olasi fonem dizisi (birlestirilmemis) |
 | `syllables` | `hold`'dan, `rules.json` icindeki kurallara gore turetilen hece tier'i (bkz. [rules.json ve syllables](#rulesjson-ve-syllables)) |
-| `chunks1`..`chunksN` | `segments`'in, `config.json` icindeki `chunk_gap_thresholds_ms` esiklerine (bu depoda varsayilan 40/80/120 ms) gore kucuk parcalarin komsu parcayla birlestirilmesiyle olusturulan, gitgide daha kaba taneli N versiyonu |
+| `chunks1`..`chunksN` | `segments`'in, `config.json` icindeki `chunk_gap_thresholds_ms` esiklerine (bu depoda varsayilan 40/80/120 ms) gore kucuk parcalarin komsu parcayla birlestirilmesiyle olusturulan, gitgide daha kaba taneli N versiyonu. Once ardisik ayni fonemler birlestirilir; sonra esikten kisa ya da esige esit her parca (fonem ya da bosluk) soldaki komsusuna katilir (soldaki tier'in ilk araligiysa sagdakine); tier'in ilk ve son araligi korunur |
+| `whisper` | istege bagli; OpenAI Whisper large-v3 ile her bolme parcasinin metni (bolum duzeyi, bkz. [Whisper tier'i](#whisper-tieri)) |
 
-`hold` ve `chunks1-N` tier'larindaki sinirlar en yakin sifir gecisine
-(zero-crossing) kaydirilir; `prob1-3`, `segments` ve `syllables`'a
-dokunulmaz.
+`hold`, `chunks1-N` ve `whisper` tier'larindaki sinirlar en yakin sifir
+gecisine (zero-crossing) kaydirilir; `prob1-3`, `segments` ve
+`syllables`'a dokunulmaz.
 
 **`details/<dosya>_details.txt`** — her kare icin baslangic/bitis zamani
-ve ilk 3 aday fonem + olasilik yuzdesi (tab ile ayrilmis tablo).
+ve ilk K aday fonem + olasilik yuzdesi (tab ile ayrilmis tablo; K ayar
+penceresindeki aday sayisi, varsayilan 3).
+
+**`whisper/tg/<dosya>.TextGrid`** — `whisper` tier'i secildiyse, yalnizca
+bu tier'i iceren TextGrid.
+
+**`whisper/txt/<dosya>.txt`** — `whisper` tier'i secildiyse, Whisper
+metni duz metin olarak; her bolme parcasi bir satir (bos parcalar
+yazilmaz).
+
+## Whisper tier'i
+
+`whisper` tier'i secildiginde ses once parcalara bolunur, her parca
+OpenAI Whisper large-v3'e ayri verilir ve her parcanin metni o parcanin
+araligina yazilir.
+
+- **Sessizlik:** 20 ms'lik pencerelerde (10 ms adimla) olculen enerji,
+  dosyanin kendi gurultu tabanina gore esiklenir (gurultu tabani ile
+  konusma duzeyi arasindaki farkin %25'i kadar ustu, en az 6 dB).
+- **Uzun bosluk (varsayilan 250 ms):** her zaman bolme noktasidir. Boylece
+  oncesinde ve sonrasinda uzun bosluk olan konusma, Min'den kisa olsa bile
+  ayri parca olur.
+- **Min / Max (varsayilan 10 / 15 s):** Max'tan uzun bir parca,
+  baslangicindan itibaren Min-Max araligindaki en uzun **kisa bosluktan**
+  (varsayilan 50 ms ve uzeri) bolunur. O aralikta kisa bosluk yoksa ses
+  80-1000 Hz band-pass filtreyle suzulur ve suzulmus sesin enerjisinin en
+  dusuk oldugu yerden bolunur. Suzulmus ses yalnizca bolme noktasini
+  bulmak icin kullanilir; Whisper'a ozgun ses verilir.
+- Bolme noktasi sessizligin ortasidir; parcalar birbirine bitisiktir ve
+  tum sesi kapsar. Tamamen sessiz parcalar Whisper'a verilmez (bos aralik).
+- Tier'da her metnin basinda ve sonunda bir sinir vardir: parcanin
+  basindaki ve sonundaki sessizlik ayri bos araliklar olur, metin yalnizca
+  konusmanin basladigi ve bittigi anlar arasina yazilir (ayni sessizlik
+  esigiyle bulunur).
+- **Padding ekle:** her parcanin basina ve sonuna 250 ms sessizlik eklenir.
+  Bu yalnizca Whisper'a verilen gecici (bellekteki) sestir; zamanlar
+  etkilenmez.
+- **Dil:** varsayilan `tr`; `auto` dili Whisper'a buldurur.
+
+Whisper, NVIDIA GPU varsa onu kullanir; yoksa CPU'da calisir ve large-v3
+icin oldukca yavastir.
 
 ## config.json
 
@@ -457,7 +568,8 @@ makilic@yahoo.com
 
 ## Lisans
 
-Bu paketin kendi kodu (`verbatim.py`, `syllables.py`, `convert.py`,
+Bu paketin kendi kodu (`verbatim.py`, `gui.py`, `whisper_tier.py`,
+`syllables.py`, `convert.py`,
 `config.json`, `rules.json`, `run.sh`, `run.bat`) [GNU General Public
 License v3.0 (GPLv3)](LICENSE) ile lisanslanmıştır.
 
@@ -481,4 +593,6 @@ https://drive.google.com/drive/folders/0B4QKykn2bzqQa0JQRTZtU08yZWs?resourcekey=
 ## Gelistirme Notu
 
 Bu projenin gelistirilmesinde, kod yazimi ve dokumantasyon calismalarina
-destek olarak Anthropic'in Claude Code araci kullanilmistir.
+destek olarak Anthropic'in Claude Code araci kullanilmistir. Ayar
+penceresi (`gui.py`), whisper tier'i (`whisper_tier.py`) ve details aday
+sayisi secenegi de Claude Code yardimiyla eklenmistir.

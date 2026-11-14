@@ -27,3 +27,11 @@ wav/*
 # Yerel/gelistirici dosyalari (depoya dahil edilmez)
 CLAUDE.md
 zenodo.txt
+
+# Whisper tier ciktilari ve yerel pencere ayarlari
+whisper/
+gui_settings.json
+
+# Yerel tasima notlari
+MACOS_TASIMA.md
+UBUNTU_TASIMA.md

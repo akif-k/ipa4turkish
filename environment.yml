@@ -39,3 +39,5 @@ dependencies:
       - librosa
       - safetensors
       - phonemizer
+      - openai-whisper
+      - scipy
