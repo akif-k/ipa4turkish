@@ -40,4 +40,8 @@ if [ "$status" -eq 0 ]; then
     sleep 1
 fi
 
+# 3: kullanici pencerede "Iptal et" / "Durdur" dedi; hata degil.
+if [ "$status" -eq 3 ]; then
+    exit 0
+fi
 exit "$status"

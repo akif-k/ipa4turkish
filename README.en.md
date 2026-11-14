@@ -30,6 +30,9 @@ and written to `wav/`, then processing continues normally (see
 ```
 ipa_verbatim/
 ├── verbatim.py                        the main application
+├── gui.py                             window: settings (tiers, candidate count, Whisper) and processing status
+├── whisper_tier.py                    optional whisper tier (OpenAI Whisper large-v3); loaded only when
+│                                       the whisper tier is selected
 ├── syllables.py                       module that derives the syllables tier from the hold tier, per rules.json
 ├── convert.py                         other_formats/ -> wav/ format conversion (via ffmpeg)
 ├── config.json                        phoneme mapping / filtering and TextGrid settings
@@ -48,7 +51,10 @@ ipa_verbatim/
 ├── other_formats/                     folder for audio files in other formats (input, optional, empty)
 ├── tg/                                generated TextGrid files (output, empty)
 ├── txt/                               generated phoneme transcripts (output, empty)
-└── details/                           frame-level probability tables (output, empty)
+├── details/                           frame-level probability tables (output, empty)
+└── whisper/                           Whisper outputs (created when the whisper tier is selected)
+    ├── tg/                            TextGrids containing only the whisper tier
+    └── txt/                           Whisper text as plain text
 ```
 
 ## Setup
@@ -68,6 +74,12 @@ ipa_verbatim/
   # macOS (Homebrew)
   brew install espeak-ng
   ```
+
+  On macOS, `verbatim.py` looks for `libespeak-ng.dylib` itself in
+  Homebrew (`/opt/homebrew/lib`, `/usr/local/lib`), MacPorts
+  (`/opt/local/lib`), and the conda environment's `lib` folder, and sets
+  the `PHONEMIZER_ESPEAK_LIBRARY` environment variable. If you installed
+  it elsewhere, set this variable manually.
 
   For Windows, see [Platform-specific notes](#platform-specific-notes).
 
@@ -95,6 +107,12 @@ no manual installation is needed:
 | `safetensors` | loading the model weights (`model.safetensors`) |
 | `phonemizer` | the espeak-ng binding required for the tokenizer to load |
 | `numpy` | array/numeric operations |
+| `openai-whisper` | optional `whisper` tier (OpenAI Whisper large-v3); used only when that tier is selected |
+| `scipy` | 80-1000 Hz band-pass filter used when searching for split points for the `whisper` tier |
+
+`tkinter` (settings window) ships with Python. If it is unavailable
+(e.g. on a headless server) the program skips the window and continues
+with the command-line settings.
 
 ### 3) Create the "verbatim" conda environment
 
@@ -137,6 +155,13 @@ espeak-ng, ffmpeg, and other dependencies — still needs to be installed
 separately on that computer, with an internet connection, see
 [Setup](#setup).)
 
+**Whisper model (optional).** Unless the `whisper` tier is selected, the
+Whisper model is neither loaded nor downloaded. When it is selected,
+`models/whisper-large-v3/large-v3.pt` (~3 GB) is looked up; if missing it
+is downloaded from OpenAI's official URL (the `openai-whisper` package
+verifies it with SHA256). The downloaded `models/whisper-large-v3/`
+folder can also be copied to another computer.
+
 ## Usage
 
 1. Place the `.wav` files to be processed in the `wav/` folder. The
@@ -169,12 +194,58 @@ separately on that computer, with an internet connection, see
    python verbatim.py
    ```
 
-3. Results are written to the `tg/`, `txt/`, and `details/` folders;
-   progress is shown in the terminal with a progress bar.
-4. When run via `run.sh` / `run.bat`, once processing completes
+3. A window opens (see [Settings window](#settings-window)).
+   **Continue** starts processing with the chosen settings; the window
+   stays open and shows progress in the **Status** panel on the right.
+   **Cancel** closes the window before processing starts. (Button names
+   are given here for the English window; see the TR / EN switch
+   below.)
+4. Results are written to the `tg/`, `txt/`, and `details/` folders
+   (and to `whisper/tg/` and `whisper/txt/` if the whisper tier is
+   selected); progress is shown
+   in the terminal with a progress bar.
+5. When run via `run.sh` / `run.bat`, once processing completes
    without errors the `ipa_verbatim` folder automatically opens in the
    file manager (this does not happen if you run `python verbatim.py`
    directly).
+
+### Settings window
+
+- **Tiers:** check the tiers to write to the TextGrid (see [Output
+  format](#output-format)). By default `hold`, `prob1-3`, `syllables`,
+  and `whisper` are selected; `segments` and `chunks1-N` are not. Since
+  `whisper` is selected, the Whisper model (~3 GB) is downloaded on the
+  first run; uncheck it if you don't want that.
+- **details/ candidate count:** how many top candidates are written to
+  the `details/` file for each 20 ms frame (default 3, at most 20). There
+  can be at most this many `prob` tiers (with 2, `prob3` cannot be
+  selected).
+- **Whisper settings:** enabled only when the `whisper` tier is checked
+  (see [Whisper tier](#whisper-tier)).
+- **Descriptions:** hold the pointer over a tier, field, or checkbox for
+  half a second to see its detailed description in a small popup.
+- **TR / EN (top right):** the window's language. The choice is
+  remembered in `gui_settings.json`. Program output in the processing
+  log stays in Turkish; the stage lines are written in the selected
+  language.
+- **Status (right side):** the current stage (e.g. loading the model,
+  computing phoneme probabilities, Whisper piece 2/5), the file being
+  processed and its position, a file progress bar, and the processing
+  log.
+- While processing, the settings are locked; **Cancel** becomes
+  **Stop** and stops processing once the current step finishes. When
+  processing ends, a **Close** button appears.
+
+To run without the window (e.g. on a headless server):
+
+```bash
+python verbatim.py --no-gui --tiers hold,syllables,whisper --top-k 5 \
+  --whisper-min 10 --whisper-max 15 --long-pause-ms 250 --short-pause-ms 50 \
+  --language tr          # --no-padding turns padding off
+```
+
+Without `--tiers`, the window's default selection is used (`hold`,
+`prob1-3`, `syllables`, `whisper`).
 
 ### Desktop shortcut
 
@@ -210,7 +281,9 @@ python verbatim.py \
   --tg-dir /other/path/tg \
   --txt-dir /other/path/txt \
   --details-dir /other/path/details \
+  --whisper-dir /other/path/whisper \
   --model-dir /other/path/models/wav2vec2-xlsr-53-espeak-cv-ft \
+  --whisper-model-dir /other/path/models/whisper-large-v3 \
   --config /other/path/config.json \
   --rules /other/path/rules.json \
   --device cpu   # or cuda, cuda:0, mps ... (default: auto-detect)
@@ -257,11 +330,13 @@ needed as long as ffmpeg already supports it.
 **`txt/<file>.txt`** — the phoneme sequence produced by the model, a
 single line.
 
-**`tg/<file>.TextGrid`** — a Praat TextGrid; contains 6 fixed tiers plus
-as many `chunks` tiers as the length of the `chunk_gap_thresholds_ms`
-list in `config.json` (with this repo's current `config.json`, 3
-thresholds → 9 tiers total; the number of tiers can be adjusted by
-changing the number of thresholds):
+**`tg/<file>.TextGrid`** — a Praat TextGrid containing the tiers selected
+in the settings window, in the order below. With everything selected: 6
+fixed tiers, plus as many `chunks` tiers as the length of the
+`chunk_gap_thresholds_ms` list in `config.json` (with this repo's current
+`config.json`, 3 thresholds → 9 tiers; the number of tiers can be
+adjusted by changing the number of thresholds), plus the optional
+`whisper` tier last:
 
 | Tier | Description |
 |---|---|
@@ -269,15 +344,56 @@ changing the number of thresholds):
 | `prob1` / `prob2` / `prob3` | separate tiers for the top 3 candidate phonemes per frame |
 | `segments` | raw frame-level most-likely phoneme sequence (unmerged) |
 | `syllables` | the syllable tier derived from `hold`, according to the rules in `rules.json` (see [rules.json and syllables](#rulesjson-and-syllables)) |
-| `chunks1`..`chunksN` | N progressively coarser-grained versions of `segments`, produced by merging small pieces with their neighbor according to the `chunk_gap_thresholds_ms` thresholds in `config.json` (40/80/120 ms by default in this repo) |
+| `chunks1`..`chunksN` | N progressively coarser-grained versions of `segments`, produced by merging small pieces with their neighbor according to the `chunk_gap_thresholds_ms` thresholds in `config.json` (40/80/120 ms by default in this repo). Consecutive identical phonemes are merged first; then every piece (phoneme or gap) at or below the threshold is merged into its left neighbor (into the right one if the left is the tier's first interval); the tier's first and last intervals are preserved |
+| `whisper` | optional; the text of each split piece from OpenAI Whisper large-v3 (piece level, see [Whisper tier](#whisper-tier)) |
 
-Boundaries in the `hold` and `chunks1-N` tiers are shifted to the
-nearest zero-crossing; `prob1-3`, `segments`, and `syllables` are left
-untouched.
+Boundaries in the `hold`, `chunks1-N`, and `whisper` tiers are shifted
+to the nearest zero-crossing; `prob1-3`, `segments`, and `syllables` are
+left untouched.
 
 **`details/<file>_details.txt`** — for each frame, the start/end time
-and the top 3 candidate phonemes + probability percentage (tab-separated
-table).
+and the top K candidate phonemes + probability percentage (tab-separated
+table; K is the candidate count in the settings window, default 3).
+
+**`whisper/tg/<file>.TextGrid`** — if the `whisper` tier is selected, a
+TextGrid containing only that tier.
+
+**`whisper/txt/<file>.txt`** — if the `whisper` tier is selected, the
+Whisper text as plain text; one line per split piece (empty pieces are
+skipped).
+
+## Whisper tier
+
+When the `whisper` tier is selected, the audio is first split into
+pieces, each piece is passed to OpenAI Whisper large-v3 separately, and
+each piece's text is written to that piece's interval.
+
+- **Silence:** energy measured in 20 ms windows (10 ms hop) is
+  thresholded against the file's own noise floor (25% of the gap between
+  noise floor and speech level above the floor, at least 6 dB).
+- **Long pause (default 250 ms):** always a split point. So speech with a
+  long pause before and after it becomes its own piece even if it is
+  shorter than Min.
+- **Min / Max (default 10 / 15 s):** a piece longer than Max is split at
+  the longest **short pause** (default 50 ms or more) within Min-Max from
+  its start. If there is no short pause in that range, the audio is
+  filtered with an 80-1000 Hz band-pass filter and split where the
+  filtered signal's energy is lowest. The filtered audio is used only to
+  find the split point; Whisper receives the original audio.
+- The split point is the middle of the pause; pieces are contiguous and
+  cover the whole recording. Fully silent pieces are not passed to
+  Whisper (empty interval).
+- In the tier, every text has a boundary at its start and end: the
+  silence at the beginning and end of a piece becomes separate empty
+  intervals, and the text is written only between the moments speech
+  starts and ends (found with the same silence threshold).
+- **Padding:** 250 ms of silence is added before and after each piece.
+  This is only the temporary (in-memory) audio passed to Whisper; times
+  are not affected.
+- **Language:** default `tr`; `auto` lets Whisper detect it.
+
+Whisper uses an NVIDIA GPU if available; otherwise it runs on the CPU,
+which is quite slow for large-v3.
 
 ## config.json
 
@@ -474,7 +590,8 @@ makilic@yahoo.com
 
 ## License
 
-This package's own code (`verbatim.py`, `syllables.py`, `convert.py`,
+This package's own code (`verbatim.py`, `gui.py`, `whisper_tier.py`,
+`syllables.py`, `convert.py`,
 `config.json`, `rules.json`, `run.sh`, `run.bat`) is licensed under the
 [GNU General Public License v3.0 (GPLv3)](LICENSE).
 
@@ -499,4 +616,6 @@ https://drive.google.com/drive/folders/0B4QKykn2bzqQa0JQRTZtU08yZWs?resourcekey=
 ## Development note
 
 Anthropic's Claude Code was used to assist with code writing and
-documentation during the development of this project.
+documentation during the development of this project. The settings
+window (`gui.py`), the whisper tier (`whisper_tier.py`), and the details
+candidate-count option were also added with the help of Claude Code.

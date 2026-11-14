@@ -14,9 +14,15 @@
 #         islemden once convert.py araciligiyla otomatik olarak 16 kHz/
 #         16 bit/mono PCM wav'a donusturulup wav/ klasorune yazilir (bu
 #         donusum icin ffmpeg gerekir).
-# Cikti : txt/ (transkripsiyon), details/ (ayrintili olasilik tablosu),
-#         tg/ (11 tier'li TextGrid: hold, prob1-3, segments, syllables,
-#         chunks1-5)
+# Cikti : txt/ (transkripsiyon), details/ (ayrintili olasilik tablosu,
+#         kare basina secilen sayida aday; varsayilan 3),
+#         tg/ (TextGrid: secilen tier'lar; hold, prob1-3, segments,
+#         syllables, chunks1-N ve istege bagli whisper),
+#         whisper/tg ve whisper/txt (whisper tier'i secildiyse: yalnizca
+#         whisper tier'li TextGrid ve duz metin)
+# Baslangicta bir pencere (gui.py) tier'lari, aday sayisini ve Whisper
+# ayarlarini sordurur; --no-gui ile pencere acilmaz, ayarlar komut satiri
+# seceneklerinden alinir.
 # hold ve chunks1-5 tier sinirlari en yakin sifir gecisine (zero-crossing)
 # kaydirilir; prob1-3, segments ve syllables'a dokunulmaz. syllables,
 # hold tier'inden rules.json'daki kurallara gore turetilir (bkz.
@@ -29,6 +35,9 @@
 # Klasor konumlarini varsayilanlarindan farkli belirlemek icin:
 #   python verbatim.py --wav-dir ... --tg-dir ... --txt-dir ... \
 #       --details-dir ... --model-dir ... --config ... --rules ...
+#
+# Pencere olmadan (orn. sunucuda):
+#   python verbatim.py --no-gui --tiers hold,syllables,whisper --top-k 5
 
 import argparse
 import glob
@@ -47,6 +56,8 @@ except ImportError:
 
 from convert import convert_other_formats, print_progress
 from syllables import build_syllable_tier, load_rules
+# whisper_tier (ve openai-whisper paketi) yalnizca whisper tier'i secildiginde
+# ice aktarilir; secilmediyse Whisper ne yuklenir ne de indirilir.
 
 if sys.platform.startswith("win") and "PHONEMIZER_ESPEAK_LIBRARY" not in os.environ:
     # Windows'ta espeak-ng'nin DLL'i, resmi kurulumdan sonra bile her zaman
@@ -60,12 +71,31 @@ if sys.platform.startswith("win") and "PHONEMIZER_ESPEAK_LIBRARY" not in os.envi
             os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = _candidate
             break
 
+if sys.platform == "darwin" and "PHONEMIZER_ESPEAK_LIBRARY" not in os.environ:
+    # macOS'ta Homebrew'un kutuphane klasoru (Apple Silicon'da /opt/homebrew/lib)
+    # ctypes'in standart arama yollarinda olmadigi icin espeak-ng bulunamiyor.
+    # Homebrew (Apple Silicon / Intel), MacPorts ve conda ortaminin kendi
+    # konumlarini sirayla deniyoruz.
+    for _candidate in (
+        os.path.join(os.environ.get("HOMEBREW_PREFIX", "/opt/homebrew"), "lib", "libespeak-ng.dylib"),
+        "/opt/homebrew/lib/libespeak-ng.dylib",
+        "/usr/local/lib/libespeak-ng.dylib",
+        "/opt/local/lib/libespeak-ng.dylib",
+        os.path.join(sys.prefix, "lib", "libespeak-ng.dylib"),
+    ):
+        if os.path.exists(_candidate):
+            os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = _candidate
+            break
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Zero-order hold ve chunks tier'lerine uygulanan sinir kaydirma penceresi.
 ZERO_CROSSING_SEARCH_SEC = 0.005
 
 DEFAULT_CHUNK_GAP_THRESHOLDS_MS = [40, 60, 80, 100, 120]
+
+# details/ dosyasinda her kare icin yazilan aday (olasilik) sayisi.
+DEFAULT_TOP_K = 3
 
 # Modele tek seferde verilen ses uzunlugu (saniye). Wav2Vec2'nin kendi
 # transformer'i self-attention nedeniyle uzun seslerde bellegi karesel
@@ -409,7 +439,87 @@ def main():
     parser.add_argument("--config", default=os.path.join(BASE_DIR, "config.json"))
     parser.add_argument("--rules", default=os.path.join(BASE_DIR, "rules.json"))
     parser.add_argument("--device", default=None, help="cpu / cuda / cuda:0 ... (varsayilan: otomatik algila)")
+    parser.add_argument("--whisper-dir", default=os.path.join(BASE_DIR, "whisper"))
+    parser.add_argument("--whisper-model-dir",
+                        default=os.path.join(BASE_DIR, "models", "whisper-large-v3"))
+    parser.add_argument("--no-gui", action="store_true",
+                        help="Ayar penceresini acma; asagidaki secenekleri kullan")
+    parser.add_argument("--tiers", default=None,
+                        help="Virgulle ayrilmis tier listesi "
+                             "(varsayilan: hold,prob1,prob2,prob3,syllables,whisper)")
+    parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K,
+                        help="details/ dosyasinda kare basina aday sayisi (varsayilan 3)")
+    parser.add_argument("--whisper-min", type=float, default=10.0, help="Whisper parcasi min (s)")
+    parser.add_argument("--whisper-max", type=float, default=15.0, help="Whisper parcasi max (s)")
+    parser.add_argument("--long-pause-ms", type=int, default=250,
+                        help="Her zaman bolunen sessizlik (ms)")
+    parser.add_argument("--short-pause-ms", type=int, default=50,
+                        help="Uzun parcalari bolmek icin en kisa sessizlik (ms)")
+    parser.add_argument("--no-padding", action="store_true",
+                        help="Whisper parcalarina 250 ms sessizlik ekleme")
+    parser.add_argument("--language", default="tr", help="Whisper dili (varsayilan tr; 'auto')")
     args = parser.parse_args()
+
+    config = load_config(args.config)
+    chunk_gap_thresholds_ms = config.get("chunk_gap_thresholds_ms", DEFAULT_CHUNK_GAP_THRESHOLDS_MS)
+    # Varsayilan secim: segments ve chunks disindakiler (whisper dahil).
+    default_tiers = ["hold", "prob1", "prob2", "prob3", "syllables", "whisper"]
+
+    opts = {
+        "tiers": [t.strip() for t in args.tiers.split(",")] if args.tiers else list(default_tiers),
+        "top_k": args.top_k,
+        "whisper_min_s": args.whisper_min,
+        "whisper_max_s": args.whisper_max,
+        "long_pause_ms": args.long_pause_ms,
+        "short_pause_ms": args.short_pause_ms,
+        "padding": not args.no_padding,
+        "language": args.language,
+    }
+    if args.no_gui:
+        sys.exit(run_console(args, opts, config, chunk_gap_thresholds_ms))
+    try:
+        from gui import run_app
+    except ImportError as exc:  # tkinter yok (orn. sunucu)
+        print(f"UYARI: pencere acilamadi ({exc}); komut satiri ayarlari kullaniliyor.")
+        sys.exit(run_console(args, opts, config, chunk_gap_thresholds_ms))
+    try:
+        code = run_app(chunk_gap_thresholds_ms, opts,
+                       lambda chosen, ui: run_pipeline(args, chosen, config,
+                                                       chunk_gap_thresholds_ms, ui))
+    except Exception as exc:  # ekran yok vb. (tkinter.TclError)
+        print(f"UYARI: pencere acilamadi ({exc}); komut satiri ayarlari kullaniliyor.")
+        code = run_console(args, opts, config, chunk_gap_thresholds_ms)
+    if code == 3:
+        print("Islem iptal edildi.")
+    sys.exit(code)
+
+
+def run_console(args, opts, config, chunk_gap_thresholds_ms):
+    """Pencere olmadan calistirir; cikis kodunu dondurur."""
+    from gui import ConsoleUI
+    run_pipeline(args, opts, config, chunk_gap_thresholds_ms, ConsoleUI())
+    return 0
+
+
+def run_pipeline(args, opts, config, chunk_gap_thresholds_ms, ui):
+    """Asil islem. ui: stage(anahtar, **degerler; metinler gui.STAGES), file(sira, toplam, ad), check_cancel()
+    (kullanici durdurduysa PipelineCancelled firlatir). Pencerede ayri bir
+    is parcaciginda calisir."""
+    chunk_tier_names = [f"chunks{i}" for i in range(1, len(chunk_gap_thresholds_ms) + 1)]
+    base_tiers = ["hold", "prob1", "prob2", "prob3", "segments", "syllables"] + chunk_tier_names
+    unknown = [t for t in opts["tiers"] if t not in base_tiers + ["whisper"]]
+    if unknown:
+        sys.exit(f"HATA: bilinmeyen tier(lar): {', '.join(unknown)}\n"
+                 f"Gecerli tier'lar: {', '.join(base_tiers + ['whisper'])}")
+    if opts["top_k"] < 1:
+        sys.exit("HATA: aday sayisi (--top-k) en az 1 olmali.")
+    use_whisper = "whisper" in opts["tiers"]
+    opts = dict(opts, check_cancel=ui.check_cancel)
+    print(f"Tier'lar: {', '.join(opts['tiers'])} | details aday sayisi: {opts['top_k']}")
+    if use_whisper:
+        print(f"Whisper: {opts['whisper_min_s']:g}-{opts['whisper_max_s']:g} s, "
+              f"uzun/kisa bosluk {opts['long_pause_ms']}/{opts['short_pause_ms']} ms, "
+              f"padding {'var' if opts['padding'] else 'yok'}, dil {opts['language']}")
 
     wav_dir = args.wav_dir
     other_formats_dir = args.other_formats_dir
@@ -418,23 +528,33 @@ def main():
     details_dir = args.details_dir
     model_dir = args.model_dir
 
-    for folder in (wav_dir, other_formats_dir, txt_dir, tg_dir, details_dir):
+    # whisper/tg: yalnizca whisper tier'li TextGrid; whisper/txt: duz metin
+    whisper_tg_dir = os.path.join(args.whisper_dir, "tg")
+    whisper_txt_dir = os.path.join(args.whisper_dir, "txt")
+    folders = [wav_dir, other_formats_dir, txt_dir, tg_dir, details_dir]
+    if use_whisper:
+        folders += [whisper_tg_dir, whisper_txt_dir]
+    for folder in folders:
         os.makedirs(folder, exist_ok=True)
 
+    ui.stage("convert")
     convert_other_formats(other_formats_dir, wav_dir)
 
+    ui.stage("check_w2v")
     ensure_model(model_dir)
+    if use_whisper:
+        from whisper_tier import ensure_whisper_model, load_whisper, whisper_intervals
+        ui.stage("check_whisper")
+        ensure_whisper_model(args.whisper_model_dir)
+    ui.check_cancel()
 
     wav_files = sorted(glob.glob(os.path.join(wav_dir, "*.wav")))
     if not wav_files:
         sys.exit(f"HATA: wav klasorunde islenecek .wav dosyasi bulunamadi: {wav_dir}")
 
-    config = load_config(args.config)
     rules = load_rules(args.rules)
 
-    chunk_gap_thresholds_ms = config.get("chunk_gap_thresholds_ms", DEFAULT_CHUNK_GAP_THRESHOLDS_MS)
     chunk_thresholds_sec = [ms / 1000.0 for ms in chunk_gap_thresholds_ms]
-    chunk_tier_names = [f"chunks{i}" for i in range(1, len(chunk_thresholds_sec) + 1)]
 
     if args.device:
         device = args.device
@@ -446,29 +566,40 @@ def main():
         device = "cpu"
     print(f"IPA ile verbatim transkripsiyon baslatildi. ({len(wav_files)} dosya, cihaz: {device})")
 
+    ui.stage("load_w2v")
     print("Model yukleniyor...")
     processor = Wav2Vec2Processor.from_pretrained(model_dir)
     model = Wav2Vec2ForCTC.from_pretrained(model_dir)
     model.to(device)
     model.eval()
     pad_token = processor.tokenizer.pad_token
+    whisper_model = None
+    if use_whisper:
+        ui.stage("load_whisper")
+        whisper_model = load_whisper(args.whisper_model_dir, args.device)
+    ui.check_cancel()
 
     total = len(wav_files)
 
     for idx, audio_path in enumerate(wav_files, 1):
+        ui.check_cancel()
         file_name = os.path.basename(audio_path)
         base_name = os.path.splitext(file_name)[0]
+        ui.file(idx, total, file_name)
         print_progress(idx - 1, total, file_name)
 
         output_txt_path = os.path.join(txt_dir, f"{base_name}.txt")
         output_textgrid_path = os.path.join(tg_dir, f"{base_name}.TextGrid")
         output_details_path = os.path.join(details_dir, f"{base_name}_details.txt")
 
+        ui.stage("read", file=file_name)
         speech_array, sr = load_audio(audio_path)
         audio_duration = len(speech_array) / sr
 
+        ui.stage("w2v", file=file_name, dur=audio_duration)
         logits = compute_logits(speech_array, sr, processor, model, device)
 
+        ui.stage("tiers", file=file_name)
         predicted_ids = torch.argmax(logits, dim=-1)
         transcription = processor.batch_decode(predicted_ids)[0]
         with open(output_txt_path, "w", encoding="utf-8") as f:
@@ -476,16 +607,18 @@ def main():
 
         logits_frame = logits[0]
         probabilities = torch.softmax(logits_frame, dim=-1)
-        top_probs, top_indices = torch.topk(probabilities, k=3, dim=-1)
+        top_k = min(opts["top_k"], probabilities.shape[-1])
+        top_probs, top_indices = torch.topk(probabilities, k=top_k, dim=-1)
 
         num_frames = logits_frame.shape[0]
         time_per_frame = audio_duration / num_frames
 
-        header = "Baslangic_s\tBitis_s\tAday_1\tOlasilik_1(%)\tAday_2\tOlasilik_2(%)\tAday_3\tOlasilik_3(%)"
+        header = "Baslangic_s\tBitis_s\t" + "\t".join(
+            f"Aday_{r}\tOlasilik_{r}(%)" for r in range(1, top_k + 1))
         details_lines = [header]
 
         hold_intervals = []
-        prob_intervals = [[], [], []]
+        prob_intervals = [[] for _ in range(top_k)]
         segments_intervals = []
 
         last_non_empty_char = ""
@@ -498,7 +631,7 @@ def main():
 
             row = [f"{start_time:.3f}", f"{end_time:.3f}"]
 
-            for rank in range(3):
+            for rank in range(top_k):
                 token_id = top_indices[frame_idx][rank].item()
                 prob = top_probs[frame_idx][rank].item() * 100
 
@@ -548,20 +681,38 @@ def main():
 
         syllable_intervals = build_syllable_tier(hold_intervals, rules)
 
-        all_tiers = [
-            ("hold", hold_intervals),
-            ("prob1", prob_intervals[0]),
-            ("prob2", prob_intervals[1]),
-            ("prob3", prob_intervals[2]),
+        all_tiers = [("hold", hold_intervals)]
+        all_tiers += [(f"prob{r + 1}", prob_intervals[r]) for r in range(min(3, top_k))]
+        all_tiers += [
             ("segments", segments_intervals),
             ("syllables", syllable_intervals),
         ] + chunk_tiers
 
+        if whisper_model is not None:
+            print()  # ilerleme cubugunun satirindan ayir
+            ui.check_cancel()
+            ui.stage("whisper_split", file=file_name)
+            whisper_tier = whisper_intervals(
+                whisper_model, speech_array, sr,
+                dict(opts, stage=lambda key, f=file_name, **kw: ui.stage(key, file=f, **kw)))
+            whisper_tier = apply_zero_crossing(whisper_tier, speech_array, sr, audio_duration)
+            write_textgrid(os.path.join(whisper_tg_dir, f"{base_name}.TextGrid"),
+                           audio_duration, [("whisper", whisper_tier)])
+            # duz metin: her bolme parcasi bir satir (bos parcalar atlanir)
+            with open(os.path.join(whisper_txt_dir, f"{base_name}.txt"), "w", encoding="utf-8") as f:
+                f.write("\n".join(inv["text"] for inv in whisper_tier if inv["text"]) + "\n")
+            all_tiers.append(("whisper", whisper_tier))
+
+        ui.stage("write_tg", file=file_name)
+        selected = set(opts["tiers"])
+        all_tiers = [(name, inv) for name, inv in all_tiers if name in selected]
         write_textgrid(output_textgrid_path, audio_duration, all_tiers)
 
         print_progress(idx, total, file_name)
 
-    print("\nIslem tamamlandi: TextGrid dosyalari 'tg', fonem tablolari 'txt', ayrintili olasiliklar 'details' klasorunde.")
+    print("\nIslem tamamlandi: TextGrid dosyalari 'tg', fonem tablolari 'txt', ayrintili olasiliklar 'details' klasorunde."
+          + (" Whisper TextGrid'leri 'whisper/tg', duz metinleri 'whisper/txt' klasorunde."
+             if use_whisper else ""))
 
 
 if __name__ == "__main__":
