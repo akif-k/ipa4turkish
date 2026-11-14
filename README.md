@@ -227,8 +227,10 @@ bilgisayara kopyalanabilir.
   kare için yazılan en olası aday sayısı (varsayılan 3, en çok 20).
   `prob` tier'ları en fazla bu sayı kadar olabilir (sayı 2 ise `prob3`
   seçilemez).
-- **Whisper ayarları:** yalnızca `whisper` tier'ı işaretliyse etkinleşir
-  (bkz. [Whisper tier'ı](#whisper-tierı)).
+- **Whisper ve Temperature blokları:** yalnızca `whisper` tier'ı
+  işaretliyse etkinleşir (bkz. [Whisper tier'ı](#whisper-tierı)).
+  Temperature bloğunda **Level** (0.0-1.0, 0.2 adımlarla, varsayılan
+  0.0) ve **Fallback** (varsayılan açık) bulunur.
 - **Açıklamalar:** imleci bir tier'ın, alanın ya da kutunun üzerinde
   yarım saniye tutunca ayrıntılı açıklaması küçük bir pencerede açılır.
 - **TR / EN (sağ üstte):** pencerenin dili. Seçim `gui_settings.json`
@@ -393,13 +395,17 @@ aralığına yazılır.
   Bu yalnızca Whisper'a verilen geçici (bellekteki) sestir; zamanlar
   etkilenmez.
 - **Dil:** varsayılan `tr`; `auto` dili Whisper'a buldurur.
-- **Temperature:** Whisper'ın ilk denemedeki sıcaklığı (0-1, varsayılan
-  0). 0 en olası metni seçer ve her seferinde aynı sonucu verir;
-  yükseldikçe sonuç çeşitlenir ama uydurma riski artar.
-- **Temperature fallback** (varsayılan açık): sonuç çok tekrarlıysa
+- **Temperature > Level:** Whisper'ın ilk denemedeki sıcaklığı (0.0-1.0,
+  0.2 adımlarla, varsayılan 0.0). 0 en olası metni seçer; yükseldikçe
+  sonuç çeşitlenir ama uydurma riski artar.
+- **Temperature > Fallback** (varsayılan açık): sonuç çok tekrarlıysa
   (sıkıştırma oranı 2,4'ün üstü, yani döngüye girmişse) ya da güveni
   düşükse (ortalama log olasılık -1'in altı), Whisper aynı parçayı
   sıcaklığı 0,2 artırarak, 1,0'a kadar yeniden dener.
+- **Tekrarlanabilirlik:** 0'ın üstündeki sıcaklıklarda Whisper rastgele
+  örnekleme yapar; bu yüzden her parçadan önce sabit bir rastgelelik
+  tohumu (seed, `whisper_tier.py`: `SEED = 0`) verilir. Aynı kayıt ve
+  aynı ayarlarla her çalıştırmada aynı sonuç alınır.
 - **Uydurmalar:** Whisper sessiz ya da belirsiz seste eğitim verisinden
   ezberlediği ifadeleri (örn. "Altyazı M.K.") uydurabilir. Bu ifadeler
   (`config.json`: `whisper_hallucinations`) ve yeniden denemelerden sonra

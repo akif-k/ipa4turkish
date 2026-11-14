@@ -232,8 +232,10 @@ folder can also be copied to another computer.
   the `details/` file for each 20 ms frame (default 3, at most 20). There
   can be at most this many `prob` tiers (with 2, `prob3` cannot be
   selected).
-- **Whisper settings:** enabled only when the `whisper` tier is checked
-  (see [Whisper tier](#whisper-tier)).
+- **Whisper and Temperature blocks:** enabled only when the `whisper`
+  tier is checked (see [Whisper tier](#whisper-tier)). The Temperature
+  block has **Level** (0.0-1.0 in 0.2 steps, default 0.0) and
+  **Fallback** (on by default).
 - **Descriptions:** hold the pointer over a tier, field, or checkbox for
   half a second to see its detailed description in a small popup.
 - **TR / EN (top right):** the window's language. The choice is
@@ -403,14 +405,17 @@ each piece's text is written to that piece's interval.
   This is only the temporary (in-memory) audio passed to Whisper; times
   are not affected.
 - **Language:** default `tr`; `auto` lets Whisper detect it.
-- **Temperature:** Whisper's temperature on the first attempt (0-1,
-  default 0). 0 picks the most likely text and always gives the same
-  result; higher values vary the result but raise the risk of
-  hallucination.
-- **Temperature fallback** (on by default): if the result is very
+- **Temperature > Level:** Whisper's temperature on the first attempt
+  (0.0-1.0 in 0.2 steps, default 0.0). 0 picks the most likely text;
+  higher values vary the result but raise the risk of hallucination.
+- **Temperature > Fallback** (on by default): if the result is very
   repetitive (compression ratio above 2.4, i.e. stuck in a loop) or has
   low confidence (average log probability below -1), Whisper retries the
   same piece with the temperature raised by 0.2, up to 1.0.
+- **Reproducibility:** above 0, Whisper samples randomly, so a fixed
+  random seed (`whisper_tier.py`: `SEED = 0`) is set before each piece.
+  The same recording with the same settings gives the same result on
+  every run.
 - **Hallucinations:** on silent or unclear audio Whisper can produce
   phrases memorized from its training data (e.g. "Altyazı M.K."). These
   phrases (`config.json`: `whisper_hallucinations`) and parts still
