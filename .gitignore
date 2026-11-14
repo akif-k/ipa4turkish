@@ -35,3 +35,6 @@ gui_settings.json
 # Yerel tasima notlari
 MACOS_TASIMA.md
 UBUNTU_TASIMA.md
+
+# Yerel masaustu kisayol betikleri
+shortcuts/
