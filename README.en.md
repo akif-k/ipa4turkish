@@ -465,7 +465,7 @@ Rules applied:
   rule is not satisfied (default: for coda, **"descending"** — the
   syllable value must DECREASE moving away from the nucleus; based on
   the sonority scale, e.g. the "nd" coda: n=6 > d=2, consistent with
-  Turkish examples like "kalp", "kirk", "genc"): the consonant(s)
+  Turkish examples like "kalp", "kırk", "genç"): the consonant(s)
   FARTHEST from the nucleus are dropped from the cluster one by one and
   left unassigned/empty, and the rule is checked again with the
   remaining cluster. The coda/onset must always stay ADJACENT to the
