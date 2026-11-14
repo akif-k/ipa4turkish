@@ -115,6 +115,15 @@ yoktur:
 ekransiz bir sunucuda) program pencereyi atlayip komut satiri
 ayarlariyla devam eder.
 
+Linux'ta conda-forge bazen Tk'nin `noxft` derlemesini kurar; bu derleme
+eski X fontlarini kullandigi icin pencerede Turkce karakterler (s, g, i,
+I ...) bozuk gorunur. `run.sh` bu durumu algilayip Xft destekli derlemeyi
+otomatik kurar. Elle duzeltmek icin:
+
+```bash
+conda install -n verbatim -c conda-forge "tk=*=xft*"
+```
+
 ### 3) "verbatim" conda ortamini olustur
 
 ```bash

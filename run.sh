@@ -23,6 +23,15 @@ fi
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 conda activate verbatim
 
+# Linux'ta conda-forge'un "noxft" Tk derlemesi eski X fontlarini kullanir;
+# bu fontlarda s, g, i (Turkce) gibi harfler bozuk gorunur. Bu derleme
+# kuruluysa pencere fontlari icin Xft destekli derlemeye gecilir (bir kez).
+if [ "$(uname -s)" = "Linux" ] && conda list "^tk$" 2>/dev/null | grep -q noxft; then
+    echo "-- Tk Xft destekli derlemeyle degistiriliyor (Turkce karakterler icin, bir kez)"
+    conda install -y -n verbatim -c conda-forge "tk=*=xft*" >/dev/null \
+        || echo "UYARI: Xft destekli Tk kurulamadi; pencerede Turkce karakterler bozuk gorunebilir." >&2
+fi
+
 set +e
 python "$SCRIPT_DIR/verbatim.py" "$@"
 status=$?

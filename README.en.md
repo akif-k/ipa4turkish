@@ -114,6 +114,15 @@ no manual installation is needed:
 (e.g. on a headless server) the program skips the window and continues
 with the command-line settings.
 
+On Linux, conda-forge sometimes installs the `noxft` build of Tk; it uses
+legacy X fonts, so Turkish characters (ş, ğ, ı, İ ...) look broken in the
+window. `run.sh` detects this and installs the Xft-enabled build
+automatically. To fix it manually:
+
+```bash
+conda install -n verbatim -c conda-forge "tk=*=xft*"
+```
+
 ### 3) Create the "verbatim" conda environment
 
 ```bash
