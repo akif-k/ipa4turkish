@@ -43,6 +43,9 @@ ipa_verbatim/
 ├── LICENSE                            this package's own code license (GPLv3)
 ├── THIRD-PARTY-NOTICES.txt            third-party components license info
 ├── README.md / README.en.md           this document (Turkish / English)
+├── CITATION.cff                       citation metadata (Citation File Format)
+├── icons/                             application icons (for desktop shortcuts):
+│                                       ipa4turkish.ico for Windows, ipa4turkish.png for Linux/macOS
 ├── models/                            folder for model files (input, empty; automatically filled on
 │                                       first run with the wav2vec2-xlsr-53-espeak-cv-ft/ subfolder,
 │                                       see Setup > Model files)

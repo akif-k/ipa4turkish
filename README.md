@@ -44,6 +44,9 @@ ipa_verbatim/
 ├── LICENSE                            bu paketin kendi kodunun lisansi (GPLv3)
 ├── THIRD-PARTY-NOTICES.txt            ucuncu taraf bilesenlerin lisans bilgisi (Ingilizce)
 ├── README.md / README.en.md           bu belge (Turkce / Ingilizce)
+├── CITATION.cff                       atif bilgisi (Citation File Format)
+├── icons/                             uygulama simgeleri (masaustu kisayollari icin):
+│                                       ipa4turkish.ico Windows, ipa4turkish.png Linux/macOS
 ├── models/                            model dosyalari icin klasor (girdi, bos; ilk calistirmada
 │                                       wav2vec2-xlsr-53-espeak-cv-ft/ alt klasoruyle otomatik doldurulur,
 │                                       bkz. Kurulum > Model dosyalari)
