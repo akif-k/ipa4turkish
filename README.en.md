@@ -401,8 +401,13 @@ each piece's text is written to that piece's interval.
   are not affected.
 - **Language:** default `tr`; `auto` lets Whisper detect it.
 
-Whisper uses an NVIDIA GPU if available; otherwise it runs on the CPU,
-which is quite slow for large-v3.
+**An NVIDIA GPU (CUDA) is recommended for the `whisper` tier.** Whisper
+uses an NVIDIA GPU if available; otherwise it runs on the CPU, which is
+quite slow for large-v3 (long recordings can take minutes). On macOS
+Whisper always runs on the CPU (openai-whisper is unreliable on the Apple
+Silicon GPU (MPS)); the wav2vec2 tiers still use MPS. Without CUDA, if
+speed matters, untick the `whisper` tier in the window or leave it out
+with `--tiers`.
 
 ## config.json
 

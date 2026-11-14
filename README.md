@@ -391,8 +391,13 @@ araligina yazilir.
   etkilenmez.
 - **Dil:** varsayilan `tr`; `auto` dili Whisper'a buldurur.
 
-Whisper, NVIDIA GPU varsa onu kullanir; yoksa CPU'da calisir ve large-v3
-icin oldukca yavastir.
+**`whisper` tier'i icin NVIDIA GPU (CUDA) onerilir.** Whisper, NVIDIA GPU
+varsa onu kullanir; yoksa CPU'da calisir ve large-v3 icin oldukca
+yavastir (uzun kayitlarda dakikalar surebilir). macOS'ta Whisper her
+zaman CPU'da calisir (openai-whisper Apple Silicon GPU'sunda (MPS)
+sorunlu oldugu icin); wav2vec2 tier'lari ise MPS'i kullanmaya devam
+eder. CUDA yoksa ve hiz onemliyse pencerede `whisper` tier'ini
+kapatabilir ya da `--tiers` ile disarida birakabilirsiniz.
 
 ## config.json
 
