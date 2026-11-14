@@ -64,6 +64,8 @@ STRINGS = {
         "short": "Kısa boşluk (ms):",
         "lang": "Dil:",
         "padding": "Padding ekle (250 ms)",
+        "temp": "Temperature:",
+        "fallback": "Temperature fallback (+0.2 → 1.0)",
         "status": "İşlem durumu",
         "stage": "Aşama:",
         "file": "Dosya:",
@@ -82,7 +84,7 @@ STRINGS = {
         "err_no_tier_title": "Tier seçilmedi",
         "err_no_tier": "En az bir tier seçin.",
         "err_top_k": "Olasılık sayısı 1-20 arasında olmalı.",
-        "err_whisper": "0 < Min < Max ve 0 < kısa boşluk ≤ uzun boşluk olmalı.",
+        "err_whisper": "0 < Min < Max, 0 < kısa boşluk ≤ uzun boşluk ve 0 ≤ temperature ≤ 1 olmalı.",
         "stop_title": "Durdur",
         "stop_ask": "İşlem o anki adım bitince durdurulsun mu?",
         # Imlec uzerine gelince acilan ayrintili aciklamalar
@@ -117,6 +119,14 @@ STRINGS = {
         "tip_short": "Max'tan uzun parçaları bölmek için aranan en kısa sessizlik.",
         "tip_lang": "Whisper'ın dili (ISO kodu, varsayılan tr). 'auto' dili Whisper'a "
                     "buldurur.",
+        "tip_temp": "Temperature: Whisper'ın ilk denemedeki sıcaklığı (0-1). 0 en olası metni seçer ve "
+                    "her seferinde aynı sonucu verir; yükseldikçe sonuç çeşitlenir ama "
+                    "uydurma riski artar. Varsayılan 0.",
+        "tip_fallback": "Temperature fallback: açıkken, sonuç çok tekrarlıysa (döngüye girmişse) ya da güveni "
+                        "düşükse Whisper aynı parçayı sıcaklığı 0.2 artırarak, 1.0'a kadar "
+                        "yeniden dener. Bu denemelerden sonra hâlâ döngüde kalan bölümler ve "
+                        "bilinen uydurma ifadeler (ör. 'Altyazı M.K.') yerine "
+                        "[anlaşılmadı] yazılır.",
         "tip_padding": "Her parçanın başına ve sonuna 250 ms sessizlik eklenir. Bu yalnızca "
                        "Whisper'a verilen geçici (bellekteki) sestir; zamanlar etkilenmez.",
     },
@@ -140,6 +150,8 @@ STRINGS = {
         "short": "Short pause (ms):",
         "lang": "Language:",
         "padding": "Add padding (250 ms)",
+        "temp": "Temperature:",
+        "fallback": "Temperature fallback (+0.2 → 1.0)",
         "status": "Status",
         "stage": "Stage:",
         "file": "File:",
@@ -158,7 +170,7 @@ STRINGS = {
         "err_no_tier_title": "No tier selected",
         "err_no_tier": "Select at least one tier.",
         "err_top_k": "Candidate count must be between 1 and 20.",
-        "err_whisper": "Required: 0 < Min < Max and 0 < short pause ≤ long pause.",
+        "err_whisper": "Required: 0 < Min < Max, 0 < short pause ≤ long pause, 0 ≤ temperature ≤ 1.",
         "stop_title": "Stop",
         "stop_ask": "Stop processing after the current step?",
         "tip_hold": "Zero-order hold: the last valid phoneme of the 1st candidate is held "
@@ -194,6 +206,14 @@ STRINGS = {
                      "Max.",
         "tip_lang": "Whisper's language (ISO code, default tr). 'auto' lets Whisper detect "
                     "it.",
+        "tip_temp": "Whisper's temperature on the first attempt (0-1). 0 picks the most "
+                    "likely text and always gives the same result; higher values vary the "
+                    "result but raise the risk of hallucination. Default 0.",
+        "tip_fallback": "When on, if the result is very repetitive (stuck in a loop) or has "
+                        "low confidence, Whisper retries the same piece with the temperature "
+                        "raised by 0.2, up to 1.0. Parts still looping after the fallback and "
+                        "known hallucinated phrases (e.g. 'Altyazı M.K.') are replaced with "
+                        "[anlaşılmadı].",
         "tip_padding": "250 ms of silence is added before and after each piece. This is only "
                        "the temporary (in-memory) audio passed to Whisper; times are not "
                        "affected.",
@@ -476,8 +496,21 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     lang_box.grid(row=4, column=1, sticky="w", padx=8)
     wh_widgets.append(lang_box)
     tip("lang", lang_label, lang_box)
+    temperature = tk.DoubleVar(value=defaults.get("temperature", 0.0))
+    temp_fallback = tk.BooleanVar(value=defaults.get("temp_fallback", True))
+    temp_label = tr_widget(ttk.Label(wh_box), "temp")
+    temp_label.grid(row=5, column=0, sticky="w", pady=2)
+    temp_spin = ttk.Spinbox(wh_box, from_=0.0, to=1.0, increment=0.1, width=5,
+                            textvariable=temperature, format="%.1f")
+    temp_spin.grid(row=5, column=1, sticky="w", padx=8, pady=2)
+    wh_widgets.append(temp_spin)
+    tip("temp", temp_label, temp_spin)
+    fb_chk = tr_widget(ttk.Checkbutton(wh_box, variable=temp_fallback), "fallback")
+    fb_chk.grid(row=6, column=0, columnspan=2, sticky="w", pady=(4, 0))
+    wh_widgets.append(fb_chk)
+    tip("fallback", fb_chk)
     pad_chk = tr_widget(ttk.Checkbutton(wh_box, variable=padding), "padding")
-    pad_chk.grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
+    pad_chk.grid(row=7, column=0, columnspan=2, sticky="w", pady=(4, 0))
     wh_widgets.append(pad_chk)
     tip("padding", pad_chk)
 
@@ -598,6 +631,8 @@ def run_app(chunk_thresholds_ms, defaults, worker):
                 "short_pause_ms": int(short_pause.get()),
                 "padding": bool(padding.get()),
                 "language": language.get().strip() or "tr",
+                "temperature": round(float(temperature.get()), 2),
+                "temp_fallback": bool(temp_fallback.get()),
             }
         except (tk.TclError, ValueError):
             messagebox.showerror(t("err_title"), t("err_number"), parent=root)
@@ -610,7 +645,8 @@ def run_app(chunk_thresholds_ms, defaults, worker):
             return None
         if "whisper" in values["tiers"] and not (
                 0 < values["whisper_min_s"] < values["whisper_max_s"]
-                and 0 < values["short_pause_ms"] <= values["long_pause_ms"]):
+                and 0 < values["short_pause_ms"] <= values["long_pause_ms"]
+                and 0.0 <= values["temperature"] <= 1.0):
             messagebox.showerror(t("err_title"), t("err_whisper"), parent=root)
             return None
         return values

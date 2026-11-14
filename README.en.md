@@ -403,6 +403,23 @@ each piece's text is written to that piece's interval.
   This is only the temporary (in-memory) audio passed to Whisper; times
   are not affected.
 - **Language:** default `tr`; `auto` lets Whisper detect it.
+- **Temperature:** Whisper's temperature on the first attempt (0-1,
+  default 0). 0 picks the most likely text and always gives the same
+  result; higher values vary the result but raise the risk of
+  hallucination.
+- **Temperature fallback** (on by default): if the result is very
+  repetitive (compression ratio above 2.4, i.e. stuck in a loop) or has
+  low confidence (average log probability below -1), Whisper retries the
+  same piece with the temperature raised by 0.2, up to 1.0.
+- **Hallucinations:** on silent or unclear audio Whisper can produce
+  phrases memorized from its training data (e.g. "Altyazı M.K."). These
+  phrases (`config.json`: `whisper_hallucinations`) and parts still
+  looping after the retries are removed from the text and replaced with
+  `[anlaşılmadı]` (`config.json`: `whisper_unclear_text`). Real
+  repetitions such as stuttering are kept as long as they are short;
+  very long repetition runs may also become `[anlaşılmadı]`.
+
+On the command line: `--temperature 0.2`, `--no-temperature-fallback`.
 
 **An NVIDIA GPU (CUDA) is recommended for the `whisper` tier.** Whisper
 uses an NVIDIA GPU if available; otherwise it runs on the CPU, which is
@@ -426,6 +443,12 @@ with `--tiers`.
 - `chunk_gap_thresholds_ms`: the merge thresholds (in milliseconds)
   used for the `chunks1`..`chunksN` tiers. As many `chunks` tiers are
   produced as the length of the list.
+- `whisper_hallucinations`: known phrases Whisper hallucinates. If a
+  Whisper segment contains one of them (ignoring case and punctuation,
+  as whole words), it is replaced with `whisper_unclear_text`. The list
+  can be shortened or extended.
+- `whisper_unclear_text`: the text written in place of segments marked
+  as unclear or hallucinated (default `[anlaşılmadı]`).
 
 ## rules.json and syllables
 
