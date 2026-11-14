@@ -458,6 +458,10 @@ def main():
     parser.add_argument("--no-padding", action="store_true",
                         help="Whisper parcalarina 250 ms sessizlik ekleme")
     parser.add_argument("--language", default="tr", help="Whisper dili (varsayilan tr; 'auto')")
+    parser.add_argument("--temperature", type=float, default=0.0,
+                        help="Whisper'in ilk denemedeki sicakligi, 0-1 (varsayilan 0)")
+    parser.add_argument("--no-temperature-fallback", action="store_true",
+                        help="Tekrarli/dusuk guvenli sonucta daha yuksek sicaklikla yeniden deneme")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -474,6 +478,8 @@ def main():
         "short_pause_ms": args.short_pause_ms,
         "padding": not args.no_padding,
         "language": args.language,
+        "temperature": args.temperature,
+        "temp_fallback": not args.no_temperature_fallback,
     }
     if args.no_gui:
         sys.exit(run_console(args, opts, config, chunk_gap_thresholds_ms))
@@ -514,7 +520,13 @@ def run_pipeline(args, opts, config, chunk_gap_thresholds_ms, ui):
     if opts["top_k"] < 1:
         sys.exit("HATA: aday sayisi (--top-k) en az 1 olmali.")
     use_whisper = "whisper" in opts["tiers"]
-    opts = dict(opts, check_cancel=ui.check_cancel)
+    if not 0.0 <= opts.get("temperature", 0.0) <= 1.0:
+        sys.exit("HATA: sicaklik (--temperature) 0 ile 1 arasinda olmali.")
+    # Whisper uydurma ifadeleri ve yerine yazilacak isaret (config.json'da
+    # tanimli degilse whisper_tier.py'deki varsayilanlar kullanilir).
+    opts = dict(opts, check_cancel=ui.check_cancel,
+                hallucinations=config.get("whisper_hallucinations"),
+                unclear_text=config.get("whisper_unclear_text"))
     print(f"Tier'lar: {', '.join(opts['tiers'])} | details aday sayisi: {opts['top_k']}")
     if use_whisper:
         print(f"Whisper: {opts['whisper_min_s']:g}-{opts['whisper_max_s']:g} s, "

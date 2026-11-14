@@ -393,6 +393,22 @@ aralığına yazılır.
   Bu yalnızca Whisper'a verilen geçici (bellekteki) sestir; zamanlar
   etkilenmez.
 - **Dil:** varsayılan `tr`; `auto` dili Whisper'a buldurur.
+- **Temperature:** Whisper'ın ilk denemedeki sıcaklığı (0-1, varsayılan
+  0). 0 en olası metni seçer ve her seferinde aynı sonucu verir;
+  yükseldikçe sonuç çeşitlenir ama uydurma riski artar.
+- **Temperature fallback** (varsayılan açık): sonuç çok tekrarlıysa
+  (sıkıştırma oranı 2,4'ün üstü, yani döngüye girmişse) ya da güveni
+  düşükse (ortalama log olasılık -1'in altı), Whisper aynı parçayı
+  sıcaklığı 0,2 artırarak, 1,0'a kadar yeniden dener.
+- **Uydurmalar:** Whisper sessiz ya da belirsiz seste eğitim verisinden
+  ezberlediği ifadeleri (örn. "Altyazı M.K.") uydurabilir. Bu ifadeler
+  (`config.json`: `whisper_hallucinations`) ve yeniden denemelerden sonra
+  hâlâ döngüde kalan bölümler metinden çıkarılır, yerlerine
+  `[anlaşılmadı]` yazılır (`config.json`: `whisper_unclear_text`).
+  Kekemelik gibi gerçek tekrarlar kısa olduğu sürece korunur; çok uzun
+  tekrar dizileri de `[anlaşılmadı]` olabilir.
+
+Komut satırında: `--temperature 0.2`, `--no-temperature-fallback`.
 
 **`whisper` tier'ı için NVIDIA GPU (CUDA) önerilir.** Whisper, NVIDIA GPU
 varsa onu kullanır; yoksa CPU'da çalışır ve large-v3 için oldukça
@@ -415,6 +431,13 @@ kapatabilir ya da `--tiers` ile dışarıda bırakabilirsiniz.
 - `chunk_gap_thresholds_ms`: `chunks1`..`chunksN` tier'ları için
   kullanılan birleştirme eşikleri (milisaniye). Liste uzunluğu kadar
   `chunks` tier'ı üretilir.
+- `whisper_hallucinations`: Whisper'ın uydurduğu bilinen ifadeler. Bir
+  Whisper bölümü bunlardan birini içeriyorsa (büyük/küçük harf ve
+  noktalama yok sayılarak, tam kelime olarak) yerine
+  `whisper_unclear_text` yazılır. Liste kısaltılabilir ya da yeni
+  ifadeler eklenebilir.
+- `whisper_unclear_text`: anlaşılmayan ya da uydurma olarak işaretlenen
+  bölümlerin yerine yazılan metin (varsayılan `[anlaşılmadı]`).
 
 ## rules.json ve syllables
 

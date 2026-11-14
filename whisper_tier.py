@@ -22,16 +22,50 @@
 #   - Padding secildiyse her parcanin basina ve sonuna 250 ms sessizlik
 #     eklenir (yalnizca bellekteki gecici ses; zamanlar etkilenmez).
 #
+# Uydurmalara (hallucination) karsi:
+#   - Sicaklik geri dusus: once t=0 denenir; sonuc cok tekrarli (sikistirma
+#     orani > 2.4) ya da dusuk guvenli (ortalama log olasilik < -1) ise
+#     Whisper ayni parcayi 0.2, 0.4 ... 1.0 sicakliklariyla yeniden dener.
+#   - Bilinen uydurma ifadeler (config.json: whisper_hallucinations; orn.
+#     "Altyazi M.K.") ve geri dususten sonra hala dongude kalan bolumler
+#     metinden cikarilir, yerine "[anlasilmadi]" yazilir (config.json:
+#     whisper_unclear_text).
+#
 # Model: models/whisper-large-v3/large-v3.pt. Dosya yoksa OpenAI'nin resmi
 # adresinden indirilir (openai-whisper, SHA256 dogrulamasiyla).
 
 import os
+import re
 import sys
 
 import numpy as np
 
 WHISPER_MODEL_NAME = "large-v3"
 WHISPER_MODEL_FILE = "large-v3.pt"
+
+# Sicaklik geri dusus ve esikler (openai-whisper'in kendi varsayilanlari)
+TEMPERATURES = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
+COMPRESSION_RATIO_THRESHOLD = 2.4
+LOGPROB_THRESHOLD = -1.0
+NO_SPEECH_THRESHOLD = 0.6
+
+# Whisper'in sessiz ya da belirsiz seste sik uydurdugu ifadeler (cogunlukla
+# egitim verisindeki altyazi/video kapanis yazilari). config.json'daki
+# "whisper_hallucinations" listesi bunun yerine gecer.
+DEFAULT_HALLUCINATIONS = [
+    "Altyazı M.K.",
+    "Altyazı",
+    "Alt yazı",
+    "İzlediğiniz için teşekkür ederim",
+    "İzlediğiniz için teşekkürler",
+    "Abone olmayı unutmayın",
+    "Beğenmeyi ve abone olmayı unutmayın",
+    "Bir sonraki videoda görüşmek üzere",
+    "Amara.org",
+    "Subtitles by",
+    "Thanks for watching",
+]
+DEFAULT_UNCLEAR_TEXT = "[anlaşılmadı]"
 
 FRAME_SEC = 0.020
 HOP_SEC = 0.010
@@ -215,8 +249,57 @@ def _speech_span(t0, t1, silences):
     return (s0, s1) if s1 > s0 else (t0, t1)
 
 
+def _norm(text):
+    """Karsilastirma icin: Turkce kucuk harf, noktalama ve bosluk sadelestirme."""
+    t = text.replace("I", "ı").replace("İ", "i").lower()
+    t = re.sub(r"[^\w\s]", " ", t)
+    return " ".join(t.split())
+
+
+def clean_segments(segments, hallucinations, unclear_text):
+    """Whisper bolumlerinden (result["segments"]) metni kurar. Bilinen
+    uydurma ifadeyi iceren ya da geri dususten sonra hala dongude kalan
+    (sikistirma orani esigin ustunde) bolumlerin yerine unclear_text
+    yazilir; art arda gelen isaretler teke indirilir. (metin, isaretlenen
+    bolum sayisi) dondurur."""
+    patterns = [_norm(h) for h in hallucinations if _norm(h)]
+    parts, flagged = [], 0
+    for seg in segments:
+        text = " ".join(seg.get("text", "").split())
+        if not text:
+            continue
+        norm = _norm(text)
+        bad = any(p and (norm == p or f" {p} " in f" {norm} ") for p in patterns)
+        bad = bad or seg.get("compression_ratio", 0) > COMPRESSION_RATIO_THRESHOLD
+        if bad:
+            flagged += 1
+            print(f"      [anlasilmadi olarak isaretlendi] {text[:80]}")
+            if parts and parts[-1] == unclear_text:
+                continue
+            parts.append(unclear_text)
+        else:
+            parts.append(text)
+    return " ".join(parts), flagged
+
+
+def temperature_schedule(start=0.0, fallback=True):
+    """Whisper'a verilecek sicakliklar: geri dusus aciksa start'tan 0.2
+    adimlarla 1.0'a kadar, kapaliysa yalnizca start."""
+    start = min(max(float(start), 0.0), 1.0)
+    if not fallback:
+        return (start,)
+    temps = [start]
+    t = start
+    while t + 0.2 <= 1.0 + 1e-9:
+        t = round(t + 0.2, 2)
+        temps.append(t)
+    return tuple(temps)
+
+
 def transcribe_pieces(model, signal, sr, points, language, padding,
-                      stage=None, check_cancel=None):
+                      stage=None, check_cancel=None,
+                      hallucinations=None, unclear_text=DEFAULT_UNCLEAR_TEXT,
+                      temperatures=TEMPERATURES):
     """Her parcayi Whisper'a verir. [{"xmin", "xmax", "text"}] dondurur.
     Metinli her araligin basinda ve sonunda bir sinir vardir: parcanin
     basindaki ve sonundaki sessizlik ayri bos araliklar olur, metin yalnizca
@@ -242,9 +325,15 @@ def transcribe_pieces(model, signal, sr, points, language, padding,
             audio = np.concatenate([pad, piece, pad]) if padding else piece
             result = model.transcribe(
                 audio, language=lang, task="transcribe", beam_size=5, best_of=5,
-                temperature=0.0, condition_on_previous_text=False, fp16=fp16,
-                verbose=None)
-            text = " ".join(result.get("text", "").split())
+                temperature=temperatures,
+                compression_ratio_threshold=COMPRESSION_RATIO_THRESHOLD,
+                logprob_threshold=LOGPROB_THRESHOLD,
+                no_speech_threshold=NO_SPEECH_THRESHOLD,
+                condition_on_previous_text=False, fp16=fp16, verbose=None)
+            text, _ = clean_segments(
+                result.get("segments", []),
+                DEFAULT_HALLUCINATIONS if hallucinations is None else hallucinations,
+                unclear_text)
         if text:
             s0, s1 = _speech_span(t0, t1, silences)
             pieces = [(t0, s0, ""), (s0, s1, text), (s1, t1, "")]
@@ -269,5 +358,9 @@ def whisper_intervals(model, signal, sr, opts):
     for t, why in points:
         print(f"    bolme: {t:.2f} s ({why})")
     return transcribe_pieces(model, signal, sr, points, opts["language"], opts["padding"],
-                             opts.get("stage"), opts.get("check_cancel"))
+                             opts.get("stage"), opts.get("check_cancel"),
+                             opts.get("hallucinations"),
+                             opts.get("unclear_text") or DEFAULT_UNCLEAR_TEXT,
+                             temperature_schedule(opts.get("temperature", 0.0),
+                                                  opts.get("temp_fallback", True)))
 
