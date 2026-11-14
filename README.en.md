@@ -632,7 +632,5 @@ https://drive.google.com/drive/folders/0B4QKykn2bzqQa0JQRTZtU08yZWs?resourcekey=
 
 ## Development note
 
-Anthropic's Claude Code was used to assist with code writing and
-documentation during the development of this project. The settings
-window (`gui.py`), the whisper tier (`whisper_tier.py`), and the details
-candidate-count option were also added with the help of Claude Code.
+Anthropic's Claude Code was used to help write the code and documentation
+of this project.

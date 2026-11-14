@@ -607,9 +607,7 @@ kurmaniz gerekmez):
 
 https://drive.google.com/drive/folders/0B4QKykn2bzqQa0JQRTZtU08yZWs?resourcekey=0-kYz6XS59uRJCKj4YuhaqhQ
 
-## Gelistirme Notu
+## Geliştirme Notu
 
-Bu projenin gelistirilmesinde, kod yazimi ve dokumantasyon calismalarina
-destek olarak Anthropic'in Claude Code araci kullanilmistir. Ayar
-penceresi (`gui.py`), whisper tier'i (`whisper_tier.py`) ve details aday
-sayisi secenegi de Claude Code yardimiyla eklenmistir.
+Bu projenin kod ve dokümantasyonunun yazılmasında Anthropic'in Claude Code
+aracından yardım alınmıştır.
