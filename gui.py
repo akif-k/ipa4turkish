@@ -27,9 +27,21 @@ from tkinter import messagebox, ttk
 
 WHISPER_LANGUAGES = ["tr", "en", "de", "fr", "ar", "fa", "ru", "az", "ku", "auto"]
 FONT_SIZE = 12
-LOG_FONT_SIZE = 11
+LOG_FONT_SIZE = 12
 TOOLTIP_FONT_SIZE = 11
 TOOLTIP_DELAY_MS = 500
+# Pencere boyutu (piksel). Genislik artisi sagdaki islem durumu paneline,
+# yukseklik artisi soldaki bloklar arasina dengeli olarak dagilir.
+WINDOW_WIDTH = 1600
+WINDOW_HEIGHT = 800
+# Sol paneldeki sikilik: onay kutusu ic boslugu (dikey), giris kutusu
+# satirlarinin dikey boslugu, kutu ic boslugu ve kutular arasi bosluk.
+ROW_PAD_Y = 0
+ENTRY_PAD_Y = 1
+BOX_PAD = (10, 6)
+BOX_GAP = 8
+# Whisper Temperature Level secenekleri (0.2'lik adimlar)
+TEMPERATURE_LEVELS = ("0.0", "0.2", "0.4", "0.6", "0.8", "1.0")
 # Pencerenin altindaki kunye satiri (CITATION.cff ile ayni)
 AUTHOR = "Mehmet Akif Kılıç"
 DOI = "10.5281/zenodo.22081832"
@@ -47,7 +59,7 @@ STRINGS = {
     "tr": {
         "title": "ipa4turkish: IPA ile verbatim transkripsiyon",
         "tiers": "Tier'lar",
-        "hold": "Tutulan fonem",
+        "hold": "Uzatılan fonemler",
         "prob1": "Birinci ihtimal",
         "prob2": "İkinci ihtimal",
         "prob3": "Üçüncü ihtimal",
@@ -64,8 +76,9 @@ STRINGS = {
         "short": "Kısa boşluk (ms):",
         "lang": "Dil:",
         "padding": "Padding ekle (250 ms)",
-        "temp": "Temperature:",
-        "fallback": "Temperature fallback (+0.2 → 1.0)",
+        "temp_box": "Temperature",
+        "temp": "Level:",
+        "fallback": "Fallback",
         "status": "İşlem durumu",
         "stage": "Aşama:",
         "file": "Dosya:",
@@ -88,7 +101,7 @@ STRINGS = {
         "stop_title": "Durdur",
         "stop_ask": "İşlem o anki adım bitince durdurulsun mu?",
         # Imlec uzerine gelince acilan ayrintili aciklamalar
-        "tip_hold": "Tutulan fonem (zero-order hold): 1. adayın son geçerli fonemi, bir "
+        "tip_hold": "Uzatılan fonemler (zero-order hold): 1. adayın son geçerli fonemi, bir "
                     "sonraki fonem gelene kadar sürdürülür; aradaki boş kareler doldurulur. "
                     "Sınırlar en yakın sıfır geçişine kaydırılır.",
         "tip_prob1": "Her 20 ms'lik karede en olası aday. Ardışık aynı adaylar tek aralıkta "
@@ -119,7 +132,7 @@ STRINGS = {
         "tip_short": "Max'tan uzun parçaları bölmek için aranan en kısa sessizlik.",
         "tip_lang": "Whisper'ın dili (ISO kodu, varsayılan tr). 'auto' dili Whisper'a "
                     "buldurur.",
-        "tip_temp": "Temperature: Whisper'ın ilk denemedeki sıcaklığı (0-1). 0 en olası metni seçer ve "
+        "tip_temp": "Temperature level: Whisper'ın ilk denemedeki sıcaklığı (0.0-1.0, 0.2 adımlarla). 0 en olası metni seçer ve "
                     "her seferinde aynı sonucu verir; yükseldikçe sonuç çeşitlenir ama "
                     "uydurma riski artar. Varsayılan 0.",
         "tip_fallback": "Temperature fallback: açıkken, sonuç çok tekrarlıysa (döngüye girmişse) ya da güveni "
@@ -150,8 +163,9 @@ STRINGS = {
         "short": "Short pause (ms):",
         "lang": "Language:",
         "padding": "Add padding (250 ms)",
-        "temp": "Temperature:",
-        "fallback": "Temperature fallback (+0.2 → 1.0)",
+        "temp_box": "Temperature",
+        "temp": "Level:",
+        "fallback": "Fallback",
         "status": "Status",
         "stage": "Stage:",
         "file": "File:",
@@ -206,10 +220,10 @@ STRINGS = {
                      "Max.",
         "tip_lang": "Whisper's language (ISO code, default tr). 'auto' lets Whisper detect "
                     "it.",
-        "tip_temp": "Whisper's temperature on the first attempt (0-1). 0 picks the most "
+        "tip_temp": "Temperature level: Whisper's temperature on the first attempt (0.0-1.0, in 0.2 steps). 0 picks the most "
                     "likely text and always gives the same result; higher values vary the "
                     "result but raise the risk of hallucination. Default 0.",
-        "tip_fallback": "When on, if the result is very repetitive (stuck in a loop) or has "
+        "tip_fallback": "Temperature fallback: when on, if the result is very repetitive (stuck in a loop) or has "
                         "low confidence, Whisper retries the same piece with the temperature "
                         "raised by 0.2, up to 1.0. Parts still looping after the fallback and "
                         "known hallucinated phrases (e.g. 'Altyazı M.K.') are replaced with "
@@ -437,11 +451,19 @@ def run_app(chunk_thresholds_ms, defaults, worker):
             row=0, column=col, padx=4)
 
     left = ttk.Frame(outer)
-    left.grid(row=1, column=0, sticky="nw")
+    left.grid(row=1, column=0, sticky="nsw")
+    # Bloklar 0, 2, 4, 6. satirlarda; aradaki bos satirlar esit agirlikla
+    # buyur, boylece pencere yuksekligi bloklar arasina dengeli dagilir.
+    for spacer in (1, 3, 5):
+        left.rowconfigure(spacer, weight=1, minsize=BOX_GAP)
     settings_widgets = []
 
     # --- Tier secimi -----------------------------------------------------
-    tiers_box = tr_widget(ttk.LabelFrame(left, padding=10), "tiers")
+    # Sol paneldeki satirlar sik: onay kutularinin kendi ic boslugu azaltilir
+    style = ttk.Style(root)
+    style.configure("Compact.TCheckbutton", padding=(2, ROW_PAD_Y))
+
+    tiers_box = tr_widget(ttk.LabelFrame(left, padding=BOX_PAD), "tiers")
     tiers_box.grid(row=0, column=0, sticky="ew")
     tier_rows = [(n, n, {}) for n in ("hold", "prob1", "prob2", "prob3", "segments", "syllables")]
     tier_rows += [(f"chunks{i}", "chunks", {"ms": f"{ms:g}"})
@@ -451,8 +473,8 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     tier_checks = {}
     for row, (name, key, fmt) in enumerate(tier_rows):
         var = tk.BooleanVar(value=name in defaults["tiers"])
-        chk = ttk.Checkbutton(tiers_box, text=name, variable=var)
-        chk.grid(row=row, column=0, sticky="w", padx=(0, 16), pady=2)
+        chk = ttk.Checkbutton(tiers_box, text=name, variable=var, style="Compact.TCheckbutton")
+        chk.grid(row=row, column=0, sticky="w", padx=(0, 16), pady=0)
         desc = tr_widget(ttk.Label(tiers_box, foreground="#555"), key, **fmt)
         desc.grid(row=row, column=1, sticky="w")
         tip(key, chk, desc, **fmt)
@@ -461,8 +483,8 @@ def run_app(chunk_thresholds_ms, defaults, worker):
         settings_widgets.append(chk)
 
     # --- details aday sayisi --------------------------------------------
-    det_box = tr_widget(ttk.LabelFrame(left, padding=10), "details")
-    det_box.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+    det_box = tr_widget(ttk.LabelFrame(left, padding=BOX_PAD), "details")
+    det_box.grid(row=2, column=0, sticky="ew")
     top_k_label = tr_widget(ttk.Label(det_box), "top_k")
     top_k_label.grid(row=0, column=0, sticky="w")
     top_k = tk.IntVar(value=defaults["top_k"])
@@ -472,8 +494,8 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     settings_widgets.append(top_k_spin)
 
     # --- Whisper ayarlari -------------------------------------------------
-    wh_box = tr_widget(ttk.LabelFrame(left, padding=10), "whisper_box")
-    wh_box.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+    wh_box = tr_widget(ttk.LabelFrame(left, padding=BOX_PAD), "whisper_box")
+    wh_box.grid(row=4, column=0, sticky="ew")
     wmin = tk.DoubleVar(value=defaults["whisper_min_s"])
     wmax = tk.DoubleVar(value=defaults["whisper_max_s"])
     long_pause = tk.IntVar(value=defaults["long_pause_ms"])
@@ -485,34 +507,40 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     for r, (key, var) in enumerate([("min", wmin), ("max", wmax),
                                     ("long", long_pause), ("short", short_pause)]):
         label = tr_widget(ttk.Label(wh_box), key)
-        label.grid(row=r, column=0, sticky="w", pady=2)
+        label.grid(row=r, column=0, sticky="w", pady=ENTRY_PAD_Y)
         ent = ttk.Entry(wh_box, textvariable=var, width=7)
-        ent.grid(row=r, column=1, sticky="w", padx=8, pady=2)
+        ent.grid(row=r, column=1, sticky="w", padx=8, pady=ENTRY_PAD_Y)
         wh_widgets.append(ent)
         tip(key, label, ent)
     lang_label = tr_widget(ttk.Label(wh_box), "lang")
-    lang_label.grid(row=4, column=0, sticky="w", pady=2)
+    lang_label.grid(row=4, column=0, sticky="w", pady=ENTRY_PAD_Y)
     lang_box = ttk.Combobox(wh_box, textvariable=language, values=WHISPER_LANGUAGES, width=6)
-    lang_box.grid(row=4, column=1, sticky="w", padx=8)
+    lang_box.grid(row=4, column=1, sticky="w", padx=8, pady=ENTRY_PAD_Y)
     wh_widgets.append(lang_box)
     tip("lang", lang_label, lang_box)
-    temperature = tk.DoubleVar(value=defaults.get("temperature", 0.0))
-    temp_fallback = tk.BooleanVar(value=defaults.get("temp_fallback", True))
-    temp_label = tr_widget(ttk.Label(wh_box), "temp")
-    temp_label.grid(row=5, column=0, sticky="w", pady=2)
-    temp_spin = ttk.Spinbox(wh_box, from_=0.0, to=1.0, increment=0.1, width=5,
-                            textvariable=temperature, format="%.1f")
-    temp_spin.grid(row=5, column=1, sticky="w", padx=8, pady=2)
-    wh_widgets.append(temp_spin)
-    tip("temp", temp_label, temp_spin)
-    fb_chk = tr_widget(ttk.Checkbutton(wh_box, variable=temp_fallback), "fallback")
-    fb_chk.grid(row=6, column=0, columnspan=2, sticky="w", pady=(4, 0))
-    wh_widgets.append(fb_chk)
-    tip("fallback", fb_chk)
-    pad_chk = tr_widget(ttk.Checkbutton(wh_box, variable=padding), "padding")
-    pad_chk.grid(row=7, column=0, columnspan=2, sticky="w", pady=(4, 0))
+    pad_chk = tr_widget(ttk.Checkbutton(wh_box, variable=padding, style="Compact.TCheckbutton"),
+                        "padding")
+    pad_chk.grid(row=5, column=0, columnspan=2, sticky="w")
     wh_widgets.append(pad_chk)
     tip("padding", pad_chk)
+
+    # --- Temperature (Whisper) ---------------------------------------------
+    temp_box = tr_widget(ttk.LabelFrame(left, padding=BOX_PAD), "temp_box")
+    temp_box.grid(row=6, column=0, sticky="ew")
+    temperature = tk.StringVar(value=f"{float(defaults.get('temperature', 0.0)):.1f}")
+    temp_fallback = tk.BooleanVar(value=defaults.get("temp_fallback", True))
+    temp_label = tr_widget(ttk.Label(temp_box), "temp")
+    temp_label.grid(row=0, column=0, sticky="w", pady=ENTRY_PAD_Y)
+    temp_spin = ttk.Spinbox(temp_box, values=TEMPERATURE_LEVELS, width=5,
+                            textvariable=temperature, state="readonly")
+    temp_spin.grid(row=0, column=1, sticky="w", padx=8, pady=ENTRY_PAD_Y)
+    wh_widgets.append(temp_spin)
+    tip("temp", temp_label, temp_spin)
+    fb_chk = tr_widget(ttk.Checkbutton(temp_box, variable=temp_fallback,
+                                       style="Compact.TCheckbutton"), "fallback")
+    fb_chk.grid(row=1, column=0, columnspan=2, sticky="w")
+    wh_widgets.append(fb_chk)
+    tip("fallback", fb_chk)
 
     # --- Islem durumu (sag) ----------------------------------------------
     right = tr_widget(ttk.LabelFrame(outer, padding=10), "status")
@@ -520,7 +548,7 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     right.columnconfigure(1, weight=1)
     right.rowconfigure(3, weight=1)
     tr_widget(ttk.Label(right), "stage").grid(row=0, column=0, sticky="nw")
-    stage_label = ttk.Label(right, font=bold, wraplength=780)
+    stage_label = ttk.Label(right, font=bold, wraplength=1000)
     stage_label.grid(row=0, column=1, sticky="w", padx=6)
     tr_widget(ttk.Label(right), "file").grid(row=1, column=0, sticky="w", pady=(4, 0))
     file_var = tk.StringVar(value="-")
@@ -601,7 +629,8 @@ def run_app(chunk_thresholds_ms, defaults, worker):
             return
         wstate = "normal" if tier_vars["whisper"].get() else "disabled"
         for w in wh_widgets:
-            w.configure(state=wstate)
+            # Level listeden secilir (yazilamaz): etkinken "readonly"
+            w.configure(state="readonly" if wstate == "normal" and w is temp_spin else wstate)
         try:
             k = int(top_k.get())
         except (tk.TclError, ValueError):
@@ -751,6 +780,7 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     root.bind("<Return>", lambda _e: on_continue())
     root.bind("<Escape>", lambda _e: on_cancel())
     root.protocol("WM_DELETE_WINDOW", on_close)
+    root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
     root.after(100, poll)
     root.mainloop()
     return state["exit"]

@@ -26,6 +26,9 @@
 #   - Sicaklik geri dusus: once t=0 denenir; sonuc cok tekrarli (sikistirma
 #     orani > 2.4) ya da dusuk guvenli (ortalama log olasilik < -1) ise
 #     Whisper ayni parcayi 0.2, 0.4 ... 1.0 sicakliklariyla yeniden dener.
+#   - Sabit tohum (SEED): 0'in ustundeki sicakliklarda ornekleme rastgele
+#     oldugu icin her parcadan once ayni tohum verilir; sonuclar her
+#     calistirmada aynidir.
 #   - Bilinen uydurma ifadeler (config.json: whisper_hallucinations; orn.
 #     "Altyazi M.K.") ve geri dususten sonra hala dongude kalan bolumler
 #     metinden cikarilir, yerine "[anlasilmadi]" yazilir (config.json:
@@ -45,6 +48,9 @@ WHISPER_MODEL_FILE = "large-v3.pt"
 
 # Sicaklik geri dusus ve esikler (openai-whisper'in kendi varsayilanlari)
 TEMPERATURES = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
+# Sabit rastgelelik tohumu: 0'in ustundeki sicakliklarda da sonuclar
+# tekrarlanabilir olsun.
+SEED = 0
 COMPRESSION_RATIO_THRESHOLD = 2.4
 LOGPROB_THRESHOLD = -1.0
 NO_SPEECH_THRESHOLD = 0.6
@@ -282,6 +288,14 @@ def clean_segments(segments, hallucinations, unclear_text):
     return " ".join(parts), flagged
 
 
+def _seed_everything(seed):
+    import random
+    import torch
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)          # CUDA tohumlarini da ayarlar
+
+
 def temperature_schedule(start=0.0, fallback=True):
     """Whisper'a verilecek sicakliklar: geri dusus aciksa start'tan 0.2
     adimlarla 1.0'a kadar, kapaliysa yalnizca start."""
@@ -323,6 +337,10 @@ def transcribe_pieces(model, signal, sr, points, language, padding,
         text = ""
         if len(piece) > 0 and not _all_silent(t0, t1, silences):
             audio = np.concatenate([pad, piece, pad]) if padding else piece
+            # Geri dususte 0'in ustundeki sicakliklarda ornekleme rastgeledir;
+            # her parcadan once ayni tohum verilerek sonuc her calistirmada
+            # (ve parcalarin sirasindan bagimsiz olarak) ayni olur.
+            _seed_everything(SEED)
             result = model.transcribe(
                 audio, language=lang, task="transcribe", beam_size=5, best_of=5,
                 temperature=temperatures,
