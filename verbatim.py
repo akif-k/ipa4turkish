@@ -56,8 +56,10 @@ except ImportError:
 
 from convert import convert_other_formats, print_progress
 from syllables import build_syllable_tier, load_rules
-# whisper_tier (ve openai-whisper paketi) yalnizca whisper tier'i secildiginde
-# ice aktarilir; secilmediyse Whisper ne yuklenir ne de indirilir.
+# openai-whisper paketi (whisper_tier icinde) yalnizca whisper tier'i
+# secildiginde ice aktarilir; secilmediyse Whisper ne yuklenir ne de
+# indirilir. (whisper_tier'in whisper.json'u okuyan kismi yalnizca numpy
+# kullanir.)
 
 if sys.platform.startswith("win") and "PHONEMIZER_ESPEAK_LIBRARY" not in os.environ:
     # Windows'ta espeak-ng'nin DLL'i, resmi kurulumdan sonra bile her zaman
@@ -96,6 +98,9 @@ DEFAULT_CHUNK_GAP_THRESHOLDS_MS = [40, 60, 80, 100, 120]
 
 # details/ dosyasinda her kare icin yazilan aday (olasilik) sayisi.
 DEFAULT_TOP_K = 3
+# Bir adayin gosterilmesi icin gereken minimum olasilik (%); altindakiler
+# bos (<PAD>) sayilir. 0 tum adaylari gosterir.
+DEFAULT_MIN_CONFIDENCE = 1.0
 
 # Modele tek seferde verilen ses uzunlugu (saniye). Wav2Vec2'nin kendi
 # transformer'i self-attention nedeniyle uzun seslerde bellegi karesel
@@ -188,7 +193,6 @@ def load_config(config_path):
     return {
         "char_mapping": {},
         "exclude_chars": [],
-        "min_confidence_percent": 0,
         "chunk_gap_thresholds_ms": list(DEFAULT_CHUNK_GAP_THRESHOLDS_MS),
     }
 
@@ -197,7 +201,8 @@ def process_ipa_token(token_str, prob, pad_token, config):
     if token_str == pad_token or not token_str:
         return ""
 
-    min_confidence = config.get("min_confidence_percent", 0)
+    # Pencereden / --min-confidence ile gelir (run_pipeline config'e yazar)
+    min_confidence = config.get("min_confidence_percent", DEFAULT_MIN_CONFIDENCE)
     if prob < min_confidence:
         return ""
 
@@ -449,14 +454,17 @@ def main():
                              "(varsayilan: hold,prob1,prob2,prob3,syllables,whisper)")
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K,
                         help="details/ dosyasinda kare basina aday sayisi (varsayilan 3)")
+    parser.add_argument("--min-confidence", type=float, default=DEFAULT_MIN_CONFIDENCE,
+                        help="Adayin gosterilmesi icin minimum olasilik %% "
+                             "(varsayilan 1; tum adaylar icin 0)")
     parser.add_argument("--whisper-min", type=float, default=10.0, help="Whisper parcasi min (s)")
     parser.add_argument("--whisper-max", type=float, default=15.0, help="Whisper parcasi max (s)")
     parser.add_argument("--long-pause-ms", type=int, default=250,
                         help="Her zaman bolunen sessizlik (ms)")
     parser.add_argument("--short-pause-ms", type=int, default=50,
                         help="Uzun parcalari bolmek icin en kisa sessizlik (ms)")
-    parser.add_argument("--no-padding", action="store_true",
-                        help="Whisper parcalarina 250 ms sessizlik ekleme")
+    parser.add_argument("--whisper-config", default=os.path.join(BASE_DIR, "whisper.json"),
+                        help="Arayuzde olmayan Whisper ayarlari (padding, seed, esikler ...)")
     parser.add_argument("--language", default="tr", help="Whisper dili (varsayilan tr; 'auto')")
     parser.add_argument("--temperature", type=float, default=0.0,
                         help="Whisper'in ilk denemedeki sicakligi, 0-1 (varsayilan 0)")
@@ -472,11 +480,11 @@ def main():
     opts = {
         "tiers": [t.strip() for t in args.tiers.split(",")] if args.tiers else list(default_tiers),
         "top_k": args.top_k,
+        "min_confidence": args.min_confidence,
         "whisper_min_s": args.whisper_min,
         "whisper_max_s": args.whisper_max,
         "long_pause_ms": args.long_pause_ms,
         "short_pause_ms": args.short_pause_ms,
-        "padding": not args.no_padding,
         "language": args.language,
         "temperature": args.temperature,
         "temp_fallback": not args.no_temperature_fallback,
@@ -488,8 +496,11 @@ def main():
     except ImportError as exc:  # tkinter yok (orn. sunucu)
         print(f"UYARI: pencere acilamadi ({exc}); komut satiri ayarlari kullaniliyor.")
         sys.exit(run_console(args, opts, config, chunk_gap_thresholds_ms))
+    # Pencerede Fallback aciklamasinda gosterilecek isaret (whisper.json)
+    from whisper_tier import load_whisper_settings
+    gui_defaults = dict(opts, unclear_text=load_whisper_settings(args.whisper_config)["unclear_text"])
     try:
-        code = run_app(chunk_gap_thresholds_ms, opts,
+        code = run_app(chunk_gap_thresholds_ms, gui_defaults,
                        lambda chosen, ui: run_pipeline(args, chosen, config,
                                                        chunk_gap_thresholds_ms, ui))
     except Exception as exc:  # ekran yok vb. (tkinter.TclError)
@@ -522,16 +533,23 @@ def run_pipeline(args, opts, config, chunk_gap_thresholds_ms, ui):
     use_whisper = "whisper" in opts["tiers"]
     if not 0.0 <= opts.get("temperature", 0.0) <= 1.0:
         sys.exit("HATA: sicaklik (--temperature) 0 ile 1 arasinda olmali.")
-    # Whisper uydurma ifadeleri ve yerine yazilacak isaret (config.json'da
-    # tanimli degilse whisper_tier.py'deki varsayilanlar kullanilir).
-    opts = dict(opts, check_cancel=ui.check_cancel,
-                hallucinations=config.get("whisper_hallucinations"),
-                unclear_text=config.get("whisper_unclear_text"))
-    print(f"Tier'lar: {', '.join(opts['tiers'])} | details aday sayisi: {opts['top_k']}")
+    min_conf = float(opts.get("min_confidence", DEFAULT_MIN_CONFIDENCE))
+    if not 0.0 <= min_conf <= 100.0:
+        sys.exit("HATA: minimum olasilik (--min-confidence) 0 ile 100 arasinda olmali.")
+    config = dict(config, min_confidence_percent=min_conf)
+    opts = dict(opts, check_cancel=ui.check_cancel)
+    print(f"Tier'lar: {', '.join(opts['tiers'])} | details aday sayisi: {opts['top_k']}"
+          f" | minimum olasilik: %{min_conf:g}")
     if use_whisper:
+        from whisper_tier import load_whisper_settings
+        # Arayuzde olmayan Whisper ayarlari (padding, seed, esikler,
+        # uydurma ifadeler): whisper.json; yoksa whisper_tier varsayilanlari.
+        ws = load_whisper_settings(args.whisper_config)
+        opts["whisper_settings"] = ws
+        padding = f"{float(ws['padding_ms']):g} ms" if ws["padding"] else "yok"
         print(f"Whisper: {opts['whisper_min_s']:g}-{opts['whisper_max_s']:g} s, "
               f"uzun/kisa bosluk {opts['long_pause_ms']}/{opts['short_pause_ms']} ms, "
-              f"padding {'var' if opts['padding'] else 'yok'}, dil {opts['language']}")
+              f"padding {padding}, dil {opts['language']}, seed {ws['seed']}")
 
     wav_dir = args.wav_dir
     other_formats_dir = args.other_formats_dir

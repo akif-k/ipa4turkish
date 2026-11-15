@@ -108,20 +108,5 @@
         "ɯᵝɯᵝ",
         "<s>"
     ],
-    "min_confidence_percent": 1,
-    "chunk_gap_thresholds_ms": [40, 80, 120],
-    "whisper_hallucinations": [
-        "Altyazı M.K.",
-        "Altyazı",
-        "Alt yazı",
-        "İzlediğiniz için teşekkür ederim",
-        "İzlediğiniz için teşekkürler",
-        "Abone olmayı unutmayın",
-        "Beğenmeyi ve abone olmayı unutmayın",
-        "Bir sonraki videoda görüşmek üzere",
-        "Amara.org",
-        "Subtitles by",
-        "Thanks for watching"
-    ],
-    "whisper_unclear_text": "[anlaşılmadı]"
+    "chunk_gap_thresholds_ms": [40, 80, 120]
 }

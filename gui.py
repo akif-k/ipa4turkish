@@ -3,8 +3,9 @@
 # verbatim.py icin pencere (tkinter, Python standart kutuphanesi).
 #
 # Sol tarafta ayarlar: TextGrid'e yazilacak tier'lar, details/ dosyasindaki
-# aday (olasilik) sayisi ve whisper tier'i secildiyse Whisper bolme/analiz
-# ayarlari. Sag tarafta islem durumu: o anki asama, uzerinde calisilan
+# aday (olasilik) sayisi ve minimum olasilik, whisper tier'i secildiyse
+# Whisper bolme/analiz ayarlari. Arayuzde olmayan Whisper ayarlari (padding,
+# seed, esikler ...) whisper.json'dadir. Sag tarafta islem durumu: o anki asama, uzerinde calisilan
 # dosya, dosya ilerlemesi ve islem gunlugu. Sag ustteki TR/EN secicisi
 # pencerenin dilini degistirir (secim gui_settings.json'da hatirlanir).
 #
@@ -28,7 +29,7 @@ from tkinter import messagebox, ttk
 WHISPER_LANGUAGES = ["tr", "en", "de", "fr", "ar", "fa", "ru", "az", "ku", "auto"]
 FONT_SIZE = 12
 LOG_FONT_SIZE = 12
-TOOLTIP_FONT_SIZE = 11
+TOOLTIP_FONT_SIZE = 12
 TOOLTIP_DELAY_MS = 500
 # Pencere boyutu (piksel). Genislik artisi sagdaki islem durumu paneline,
 # yukseklik artisi soldaki bloklar arasina dengeli olarak dagilir.
@@ -40,6 +41,14 @@ ROW_PAD_Y = 0
 ENTRY_PAD_Y = 1
 BOX_PAD = (10, 6)
 BOX_GAP = 8
+# Min. olasilik (%) secenekleri: 1'in altinda 0.1, ustunde 1'lik adimlar
+# (kutuya elle baska bir deger de yazilabilir).
+MIN_CONF_LEVELS = (["0"] + [f"0.{i}" for i in range(1, 10)]
+                   + [str(i) for i in range(1, 101)])
+# prob aciklamalari ile Min. olasilik arasindaki en kucuk bosluk (piksel)
+MIN_CONF_GAP = 24
+# prob1-3 cercevesinin ic boslugu (piksel)
+PROB_FRAME_PAD = 6
 # Whisper Temperature Level secenekleri (0.2'lik adimlar)
 TEMPERATURE_LEVELS = ("0.0", "0.2", "0.4", "0.6", "0.8", "1.0")
 # Pencerenin altindaki kunye satiri (CITATION.cff ile ayni)
@@ -67,15 +76,15 @@ STRINGS = {
         "syllables": "Heceler",
         "chunks": "Gruplandırma (≤ {ms} ms parçalar birleştirilir)",
         "whisper": "Whisper large-v3 metni",
-        "details": "details",
+        "details": "details/.txt dosyalarında yer alan:",
         "top_k": "Olasılık sayısı:",
+        "min_conf": "Min. olasılık (%)",
         "whisper_box": "Whisper",
         "min": "Min (s):",
         "max": "Max (s):",
         "long": "Uzun boşluk (ms):",
         "short": "Kısa boşluk (ms):",
         "lang": "Dil:",
-        "padding": "Padding ekle (250 ms)",
         "temp_box": "Temperature",
         "temp": "Level:",
         "fallback": "Fallback",
@@ -97,6 +106,7 @@ STRINGS = {
         "err_no_tier_title": "Tier seçilmedi",
         "err_no_tier": "En az bir tier seçin.",
         "err_top_k": "Olasılık sayısı 1-20 arasında olmalı.",
+        "err_min_conf": "Minimum olasılık 0-100 arasında olmalı.",
         "err_whisper": "0 < Min < Max, 0 < kısa boşluk ≤ uzun boşluk ve 0 ≤ temperature ≤ 1 olmalı.",
         "stop_title": "Durdur",
         "stop_ask": "İşlem o anki adım bitince durdurulsun mu?",
@@ -121,6 +131,12 @@ STRINGS = {
                        "yazılır.",
         "tip_top_k": "details/ dosyasında her 20 ms'lik kare için yazılan en olası aday "
                      "sayısı (1-20). prob tier'ları bu sayıdan fazla olamaz.",
+        "tip_min_conf": "Bir adayın prob tier'larında fonem olarak gösterilmesi için gereken "
+                        "en düşük olasılık (%, 0-100, varsayılan 1). Bunun altındaki adaylar "
+                        "boş bırakılır (details/ dosyasında <PAD>; olasılık değeri yine "
+                        "yazılır). 1. aday üzerinden türetilen hold, segments, syllables ve "
+                        "chunks tier'ları da bundan etkilenir. Tüm olasılıkları (adayları) "
+                        "görmek için 0 yazın.",
         "tip_min": "İdeal aralığın alt sınırı. Öncesinde ve sonrasında en az 'uzun boşluk' "
                    "kadar sessizlik olan konuşma, bundan kısa olsa bile ayrı parça olur.",
         "tip_max": "İdeal aralığın üst sınırı. Daha uzun konuşma, Min-Max aralığındaki en "
@@ -139,9 +155,8 @@ STRINGS = {
                         "düşükse Whisper aynı parçayı sıcaklığı 0.2 artırarak, 1.0'a kadar "
                         "yeniden dener. Bu denemelerden sonra hâlâ döngüde kalan bölümler ve "
                         "bilinen uydurma ifadeler (ör. 'Altyazı M.K.') yerine "
-                        "[anlaşılmadı] yazılır.",
-        "tip_padding": "Her parçanın başına ve sonuna 250 ms sessizlik eklenir. Bu yalnızca "
-                       "Whisper'a verilen geçici (bellekteki) sestir; zamanlar etkilenmez.",
+                        "{unclear} yazılır. Padding, seed ve eşikler gibi diğer Whisper "
+                        "ayarları whisper.json dosyasındadır.",
     },
     "en": {
         "title": "ipa4turkish: Verbatim transcription with IPA for Turkish",
@@ -154,15 +169,15 @@ STRINGS = {
         "syllables": "Syllables",
         "chunks": "Grouping (pieces ≤ {ms} ms are merged)",
         "whisper": "Whisper large-v3 text",
-        "details": "details",
+        "details": "In the details/.txt files:",
         "top_k": "Candidate count:",
+        "min_conf": "Min. probability (%)",
         "whisper_box": "Whisper",
         "min": "Min (s):",
         "max": "Max (s):",
         "long": "Long pause (ms):",
         "short": "Short pause (ms):",
         "lang": "Language:",
-        "padding": "Add padding (250 ms)",
         "temp_box": "Temperature",
         "temp": "Level:",
         "fallback": "Fallback",
@@ -184,6 +199,7 @@ STRINGS = {
         "err_no_tier_title": "No tier selected",
         "err_no_tier": "Select at least one tier.",
         "err_top_k": "Candidate count must be between 1 and 20.",
+        "err_min_conf": "Minimum probability must be between 0 and 100.",
         "err_whisper": "Required: 0 < Min < Max, 0 < short pause ≤ long pause, 0 ≤ temperature ≤ 1.",
         "stop_title": "Stop",
         "stop_ask": "Stop processing after the current step?",
@@ -208,6 +224,12 @@ STRINGS = {
                        "(plain text).",
         "tip_top_k": "How many top candidates are written to the details/ file for each "
                      "20 ms frame (1-20). There can be at most this many prob tiers.",
+        "tip_min_conf": "The lowest probability a candidate needs to be shown as a phoneme "
+                        "in the prob tiers (%, 0-100, default 1). Candidates below it are "
+                        "left empty (<PAD> in the details/ file; their probability is still "
+                        "written). The hold, segments, syllables and chunks tiers, derived "
+                        "from the 1st candidate, are affected too. Enter 0 to see all "
+                        "probabilities (candidates).",
         "tip_min": "Lower bound of the ideal range. Speech with at least a 'long pause' of "
                    "silence before and after it becomes its own piece even if it is "
                    "shorter than this.",
@@ -227,10 +249,8 @@ STRINGS = {
                         "low confidence, Whisper retries the same piece with the temperature "
                         "raised by 0.2, up to 1.0. Parts still looping after the fallback and "
                         "known hallucinated phrases (e.g. 'Altyazı M.K.') are replaced with "
-                        "[anlaşılmadı].",
-        "tip_padding": "250 ms of silence is added before and after each piece. This is only "
-                       "the temporary (in-memory) audio passed to Whisper; times are not "
-                       "affected.",
+                        "{unclear}. Other Whisper settings such as padding, seed and "
+                        "thresholds are in the whisper.json file.",
     },
 }
 
@@ -320,7 +340,7 @@ class Tooltip:
         self.tip = tk.Toplevel(self.widget)
         self.tip.wm_overrideredirect(True)
         self.tip.wm_geometry(f"+{x}+{y}")
-        tk.Label(self.tip, text=self.get_text(), justify="left", wraplength=440,
+        tk.Label(self.tip, text=self.get_text(), justify="left", wraplength=470,
                  background="#ffffe8", foreground="#222", relief="solid", borderwidth=1,
                  padx=8, pady=6, font=("TkDefaultFont", TOOLTIP_FONT_SIZE)).pack()
 
@@ -403,9 +423,11 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     """Pencereyi gosterir; "Devam et"te worker(opts, ui)'yi arka planda
     calistirir. Cikis kodunu dondurur (0 basarili, 1 hata, 3 iptal).
 
-    defaults: {"tiers": [...], "top_k": int, "whisper_min_s": float,
-               "whisper_max_s": float, "long_pause_ms": int,
-               "short_pause_ms": int, "padding": bool, "language": str}"""
+    defaults: {"tiers": [...], "top_k": int, "min_confidence": float,
+               "whisper_min_s": float, "whisper_max_s": float,
+               "long_pause_ms": int, "short_pause_ms": int, "language": str,
+               "temperature": float, "temp_fallback": bool,
+               "unclear_text": str}"""
     root = tk.Tk()
     for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
         tkfont.nametofont(name).configure(size=FONT_SIZE)
@@ -452,9 +474,9 @@ def run_app(chunk_thresholds_ms, defaults, worker):
 
     left = ttk.Frame(outer)
     left.grid(row=1, column=0, sticky="nsw")
-    # Bloklar 0, 2, 4, 6. satirlarda; aradaki bos satirlar esit agirlikla
+    # Bloklar 0, 2, 4. satirlarda; aradaki bos satirlar esit agirlikla
     # buyur, boylece pencere yuksekligi bloklar arasina dengeli dagilir.
-    for spacer in (1, 3, 5):
+    for spacer in (1, 3):
         left.rowconfigure(spacer, weight=1, minsize=BOX_GAP)
     settings_widgets = []
 
@@ -471,16 +493,56 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     tier_rows.append(("whisper", "whisper", {}))
     tier_vars = {}
     tier_checks = {}
+    prob_descs = []
+    all_descs = []
+    # prob1-3 satirlarinin cevresindeki cerceve: ayni izgaraya (satir 1-3)
+    # yerlesir ve onay kutularindan once olusturulur, boylece onlarin altinda
+    # kalir; sutun hizasi diger tier'larla ayni olur.
+    prob_frame = ttk.Frame(tiers_box, relief="groove", borderwidth=2)
+    prob_frame.grid(row=1, column=0, rowspan=3, columnspan=2, sticky="nsew")
     for row, (name, key, fmt) in enumerate(tier_rows):
         var = tk.BooleanVar(value=name in defaults["tiers"])
         chk = ttk.Checkbutton(tiers_box, text=name, variable=var, style="Compact.TCheckbutton")
-        chk.grid(row=row, column=0, sticky="w", padx=(0, 16), pady=0)
+        # cerceveye degmemesi icin prob1 ustten, prob3 alttan bosluk alir
+        pady = {"prob1": (PROB_FRAME_PAD, 0), "prob3": (0, PROB_FRAME_PAD)}.get(name, 0)
+        chk.grid(row=row, column=0, sticky="w", padx=(PROB_FRAME_PAD, 16), pady=pady)
         desc = tr_widget(ttk.Label(tiers_box, foreground="#555"), key, **fmt)
-        desc.grid(row=row, column=1, sticky="w")
+        desc.grid(row=row, column=1, sticky="w", pady=pady)
         tip(key, chk, desc, **fmt)
         tier_vars[name] = var
         tier_checks[name] = chk
         settings_widgets.append(chk)
+        all_descs.append(desc)
+        if name.startswith("prob"):
+            prob_descs.append(desc)
+
+    # Min. olasilik: prob cercevesinin sagindaki bosluk (satir 1-3). Soldan
+    # konumu fit_prob_column() ayarlar.
+    mc_frame = ttk.Frame(tiers_box)
+    mc_frame.grid(row=1, column=1, rowspan=3, sticky="w")
+    min_conf_label = tr_widget(ttk.Label(mc_frame), "min_conf")
+    min_conf_label.grid(row=0, column=0)          # etiket ve kutu ortali
+    min_conf = tk.StringVar(value=f"{float(defaults.get('min_confidence', 1.0)):g}")
+    min_conf_spin = ttk.Spinbox(mc_frame, values=MIN_CONF_LEVELS, width=4,
+                                textvariable=min_conf)
+    min_conf_spin.grid(row=1, column=0, pady=(2, 0))
+    tip("min_conf", min_conf_label, min_conf_spin)
+    settings_widgets.append(min_conf_spin)
+
+    def fit_prob_column():
+        """Min. olasiligi yerlestirir: en uzun prob aciklamasindan sonra,
+        sag kenara yaslansaydi kalacak boslugun yarisi kadar (en az
+        MIN_CONF_GAP) ileride. 2. sutun buna yetecek kadar genis tutulur.
+        Dil degisince yeniden cagrilir (metin genislikleri degisir)."""
+        tiers_box.update_idletasks()
+        prob_w = max(d.winfo_reqwidth() for d in prob_descs)
+        mc_w = mc_frame.winfo_reqwidth()
+        right_pad = PROB_FRAME_PAD + 4
+        col_w = max(max(d.winfo_reqwidth() for d in all_descs),
+                    prob_w + MIN_CONF_GAP + mc_w + right_pad)
+        gap = max(MIN_CONF_GAP, (col_w - prob_w - mc_w - right_pad) // 2)
+        tiers_box.columnconfigure(1, minsize=col_w)
+        mc_frame.grid_configure(padx=(prob_w + gap, 0))
 
     # --- details aday sayisi --------------------------------------------
     det_box = tr_widget(ttk.LabelFrame(left, padding=BOX_PAD), "details")
@@ -500,7 +562,6 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     wmax = tk.DoubleVar(value=defaults["whisper_max_s"])
     long_pause = tk.IntVar(value=defaults["long_pause_ms"])
     short_pause = tk.IntVar(value=defaults["short_pause_ms"])
-    padding = tk.BooleanVar(value=defaults["padding"])
     language = tk.StringVar(value=defaults["language"])
 
     wh_widgets = []
@@ -518,15 +579,10 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     lang_box.grid(row=4, column=1, sticky="w", padx=8, pady=ENTRY_PAD_Y)
     wh_widgets.append(lang_box)
     tip("lang", lang_label, lang_box)
-    pad_chk = tr_widget(ttk.Checkbutton(wh_box, variable=padding, style="Compact.TCheckbutton"),
-                        "padding")
-    pad_chk.grid(row=5, column=0, columnspan=2, sticky="w")
-    wh_widgets.append(pad_chk)
-    tip("padding", pad_chk)
 
-    # --- Temperature (Whisper) ---------------------------------------------
-    temp_box = tr_widget(ttk.LabelFrame(left, padding=BOX_PAD), "temp_box")
-    temp_box.grid(row=6, column=0, sticky="ew")
+    # --- Temperature (Whisper kutusunun icinde) -----------------------------
+    temp_box = tr_widget(ttk.LabelFrame(wh_box, padding=BOX_PAD), "temp_box")
+    temp_box.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(6, 0))
     temperature = tk.StringVar(value=f"{float(defaults.get('temperature', 0.0)):.1f}")
     temp_fallback = tk.BooleanVar(value=defaults.get("temp_fallback", True))
     temp_label = tr_widget(ttk.Label(temp_box), "temp")
@@ -540,7 +596,7 @@ def run_app(chunk_thresholds_ms, defaults, worker):
                                        style="Compact.TCheckbutton"), "fallback")
     fb_chk.grid(row=1, column=0, columnspan=2, sticky="w")
     wh_widgets.append(fb_chk)
-    tip("fallback", fb_chk)
+    tip("fallback", fb_chk, unclear=defaults.get("unclear_text", "[anlaşılamadı]"))
 
     # --- Islem durumu (sag) ----------------------------------------------
     right = tr_widget(ttk.LabelFrame(outer, padding=10), "status")
@@ -622,6 +678,7 @@ def run_app(chunk_thresholds_ms, defaults, worker):
         cancel_btn.configure(text=t("stop") if state["running"] else t("cancel"))
         cont_btn.configure(text=t("close") if state["finished"] else t("continue"))
         show_stage()
+        fit_prob_column()
         _save_ui_lang(lang)
 
     def refresh(*_):
@@ -654,11 +711,11 @@ def run_app(chunk_thresholds_ms, defaults, worker):
             values = {
                 "tiers": [n for n, v in tier_vars.items() if v.get()],
                 "top_k": int(top_k.get()),
+                "min_confidence": float(min_conf.get().replace(",", ".")),
                 "whisper_min_s": float(wmin.get()),
                 "whisper_max_s": float(wmax.get()),
                 "long_pause_ms": int(long_pause.get()),
                 "short_pause_ms": int(short_pause.get()),
-                "padding": bool(padding.get()),
                 "language": language.get().strip() or "tr",
                 "temperature": round(float(temperature.get()), 2),
                 "temp_fallback": bool(temp_fallback.get()),
@@ -671,6 +728,9 @@ def run_app(chunk_thresholds_ms, defaults, worker):
             return None
         if not 1 <= values["top_k"] <= 20:
             messagebox.showerror(t("err_title"), t("err_top_k"), parent=root)
+            return None
+        if not 0.0 <= values["min_confidence"] <= 100.0:
+            messagebox.showerror(t("err_title"), t("err_min_conf"), parent=root)
             return None
         if "whisper" in values["tiers"] and not (
                 0 < values["whisper_min_s"] < values["whisper_max_s"]

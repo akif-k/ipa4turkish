@@ -36,6 +36,7 @@ ipa_verbatim/
 ├── syllables.py                       module that derives the syllables tier from the hold tier, per rules.json
 ├── convert.py                         other_formats/ -> wav/ format conversion (via ffmpeg)
 ├── config.json                        phoneme mapping / filtering and TextGrid settings
+├── whisper.json                       Whisper settings not in the window (padding, seed, thresholds, hallucinations)
 ├── rules.json                         C/V syllable values and syllable-type rules for the syllables tier
 ├── environment.yml                    to create the "verbatim" conda environment
 ├── run.sh                             shortcut that activates the conda environment and runs verbatim.py (Linux/macOS)
@@ -228,16 +229,27 @@ folder can also be copied to another computer.
   and `whisper` are selected; `segments` and `chunks1-N` are not. Since
   `whisper` is selected, the Whisper model (~3 GB) is downloaded on the
   first run; uncheck it if you don't want that.
-- **details/ candidate count:** how many top candidates are written to
-  the `details/` file for each 20 ms frame (default 3, at most 20). There
-  can be at most this many `prob` tiers (with 2, `prob3` cannot be
-  selected).
-- **Whisper and Temperature blocks:** enabled only when the `whisper`
-  tier is checked (see [Whisper tier](#whisper-tier)). The Temperature
-  block has **Level** (0.0-1.0 in 0.2 steps, default 0.0) and
-  **Fallback** (on by default).
+- **Min. probability (%)** (in the Tiers box, to the right of the
+  `prob1-3` frame): the lowest probability a candidate needs to be shown
+  as a phoneme in the `prob` tiers (0-100, default 1; the arrows step by
+  0.1 below 1 and by 1 above it). Candidates below
+  it are left empty (`<PAD>` in the `details/` file; their probability
+  is still written). The `hold`, `segments`, `syllables` and `chunks`
+  tiers, derived from the 1st candidate, are affected too. **Enter 0 to
+  see all probabilities (candidates).** On the command line:
+  `--min-confidence 0`.
+- **In the details/.txt files > Candidate count:** how many top
+  candidates are written to the `details/` file for each 20 ms frame
+  (default 3, at most 20). There can be at most this many `prob` tiers
+  (with 2, `prob3` cannot be selected).
+- **Whisper block:** enabled only when the `whisper` tier is checked
+  (see [Whisper tier](#whisper-tier)). The Temperature section inside it
+  has **Level** (0.0-1.0 in 0.2 steps, default 0.0) and
+  **Fallback** (on by default). Other Whisper settings such as padding,
+  seed and thresholds are in [whisper.json](#whisperjson).
 - **Descriptions:** hold the pointer over a tier, field, or checkbox for
-  half a second to see its detailed description in a small popup.
+  half a second to see its detailed description in a small popup (font
+  size: `TOOLTIP_FONT_SIZE` in `gui.py`, default 12).
 - **TR / EN (top right):** the window's language. The choice is
   remembered in `gui_settings.json`. Program output in the processing
   log stays in Turkish; the stage lines are written in the selected
@@ -254,8 +266,9 @@ To run without the window (e.g. on a headless server):
 
 ```bash
 python verbatim.py --no-gui --tiers hold,syllables,whisper --top-k 5 \
+  --min-confidence 1 \
   --whisper-min 10 --whisper-max 15 --long-pause-ms 250 --short-pause-ms 50 \
-  --language tr          # --no-padding turns padding off
+  --language tr          # padding etc.: whisper.json
 ```
 
 Without `--tiers`, the window's default selection is used (`hold`,
@@ -299,6 +312,7 @@ python verbatim.py \
   --model-dir /other/path/models/wav2vec2-xlsr-53-espeak-cv-ft \
   --whisper-model-dir /other/path/models/whisper-large-v3 \
   --config /other/path/config.json \
+  --whisper-config /other/path/whisper.json \
   --rules /other/path/rules.json \
   --device cpu   # or cuda, cuda:0, mps ... (default: auto-detect)
 ```
@@ -401,9 +415,10 @@ each piece's text is written to that piece's interval.
   silence at the beginning and end of a piece becomes separate empty
   intervals, and the text is written only between the moments speech
   starts and ends (found with the same silence threshold).
-- **Padding:** 250 ms of silence is added before and after each piece.
-  This is only the temporary (in-memory) audio passed to Whisper; times
-  are not affected.
+- **Padding** (`whisper.json`: `padding`, `padding_ms`; on by default,
+  250 ms): silence is added before and after each piece. This is only
+  the temporary (in-memory) audio passed to Whisper; times are not
+  affected.
 - **Language:** default `tr`; `auto` lets Whisper detect it.
 - **Temperature > Level:** Whisper's temperature on the first attempt
   (0.0-1.0 in 0.2 steps, default 0.0). 0 picks the most likely text;
@@ -411,18 +426,20 @@ each piece's text is written to that piece's interval.
 - **Temperature > Fallback** (on by default): if the result is very
   repetitive (compression ratio above 2.4, i.e. stuck in a loop) or has
   low confidence (average log probability below -1), Whisper retries the
-  same piece with the temperature raised by 0.2, up to 1.0.
+  same piece with the temperature raised by 0.2 (`whisper.json`:
+  `temperature_increment`), up to 1.0. The thresholds are in
+  `whisper.json`.
 - **Reproducibility:** above 0, Whisper samples randomly, so a fixed
-  random seed (`whisper_tier.py`: `SEED = 0`) is set before each piece.
-  The same recording with the same settings gives the same result on
-  every run.
+  random seed (`whisper.json`: `seed`, default 0) is set before each
+  piece. The same recording with the same settings gives the same result
+  on every run.
 - **Hallucinations:** on silent or unclear audio Whisper can produce
   phrases memorized from its training data (e.g. "Altyazı M.K."). These
-  phrases (`config.json`: `whisper_hallucinations`) and parts still
-  looping after the retries are removed from the text and replaced with
-  `[anlaşılmadı]` (`config.json`: `whisper_unclear_text`). Real
-  repetitions such as stuttering are kept as long as they are short;
-  very long repetition runs may also become `[anlaşılmadı]`.
+  phrases (`whisper.json`: `hallucinations`) and parts still looping
+  after the retries are removed from the text and replaced with
+  `[anlaşılamadı]` (`whisper.json`: `unclear_text`). Real repetitions
+  such as stuttering are kept as long as they are short; very long
+  repetition runs may also become `[anlaşılamadı]`.
 
 On the command line: `--temperature 0.2`, `--no-temperature-fallback`.
 
@@ -442,18 +459,36 @@ with `--tiers`.
   shown (will be turned into a blank) in the TextGrid and details
   output (stress marks, the `<pad>`/`<s>`/`</s>`/`<unk>` special
   tokens, phonemes belonging to unused model languages, etc.).
-- `min_confidence_percent`: the minimum probability percentage
-  required for a candidate to be shown; candidates below it are
-  treated as empty.
 - `chunk_gap_thresholds_ms`: the merge thresholds (in milliseconds)
   used for the `chunks1`..`chunksN` tiers. As many `chunks` tiers are
   produced as the length of the list.
-- `whisper_hallucinations`: known phrases Whisper hallucinates. If a
-  Whisper segment contains one of them (ignoring case and punctuation,
-  as whole words), it is replaced with `whisper_unclear_text`. The list
-  can be shortened or extended.
-- `whisper_unclear_text`: the text written in place of segments marked
-  as unclear or hallucinated (default `[anlaşılmadı]`).
+
+The minimum probability (formerly `min_confidence_percent`) is now set
+in the window (**Min. probability (%)**, default 1) or with
+`--min-confidence`.
+
+## whisper.json
+
+Whisper settings that are not in the window. If the file is missing or
+a key is absent, the defaults in `whisper_tier.py` are used; an
+unrecognized key triggers a warning. Temperature **Level** and
+**Fallback** are in the window; the settings below work together with
+them.
+
+| Key | Default | Description |
+|---|---|---|
+| `padding` | `true` | Silence is added before and after each piece (only the temporary audio passed to Whisper; times are not affected). |
+| `padding_ms` | `250` | Length of the added silence (ms). |
+| `seed` | `0` | Random seed set before each piece, so results above temperature 0 are reproducible. |
+| `temperature_increment` | `0.2` | How much the temperature rises on each retry when Fallback is on (up to 1.0). `0` disables retries. |
+| `compression_ratio_threshold` | `2.4` | If the result's compression ratio is above this (looping/repetition), the fallback kicks in; if it is still above after the fallback, the segment becomes `unclear_text`. |
+| `logprob_threshold` | `-1.0` | If the average log probability is below this (low confidence), the fallback kicks in. |
+| `no_speech_threshold` | `0.6` | If the "no speech" probability is above this and the log probability is low, the piece is treated as empty. |
+| `beam_size` | `5` | Beam search width at temperature 0. |
+| `best_of` | `5` | Number of sampled candidates at temperatures above 0. |
+| `condition_on_previous_text` | `false` | Whether to pass the previous text as context (turning it on raises the risk of loops/hallucinations). |
+| `hallucinations` | (list) | Known phrases Whisper hallucinates. If a segment contains one of them (ignoring case and punctuation, as whole words), it is replaced with `unclear_text`. The list can be shortened or extended. |
+| `unclear_text` | `[anlaşılamadı]` | The text written in place of segments marked as unclear or hallucinated. |
 
 ## rules.json and syllables
 
@@ -637,7 +672,7 @@ makilic@yahoo.com
 
 This package's own code (`verbatim.py`, `gui.py`, `whisper_tier.py`,
 `syllables.py`, `convert.py`,
-`config.json`, `rules.json`, `run.sh`, `run.bat`) is licensed under the
+`config.json`, `whisper.json`, `rules.json`, `run.sh`, `run.bat`) is licensed under the
 [GNU General Public License v3.0 (GPLv3)](LICENSE).
 
 For third-party components, see
