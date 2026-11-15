@@ -1,0 +1,26 @@
+{
+    "padding": true,
+    "padding_ms": 250,
+    "seed": 0,
+    "temperature_increment": 0.2,
+    "compression_ratio_threshold": 2.4,
+    "logprob_threshold": -1.0,
+    "no_speech_threshold": 0.6,
+    "beam_size": 5,
+    "best_of": 5,
+    "condition_on_previous_text": false,
+    "hallucinations": [
+        "Altyazı M.K.",
+        "Altyazı",
+        "Alt yazı",
+        "İzlediğiniz için teşekkür ederim",
+        "İzlediğiniz için teşekkürler",
+        "Abone olmayı unutmayın",
+        "Beğenmeyi ve abone olmayı unutmayın",
+        "Bir sonraki videoda görüşmek üzere",
+        "Amara.org",
+        "Subtitles by",
+        "Thanks for watching"
+    ],
+    "unclear_text": "[anlaşılamadı]"
+}

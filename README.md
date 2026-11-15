@@ -37,6 +37,7 @@ ipa_verbatim/
 ├── syllables.py                       hold tier'ından rules.json'a göre syllables tier'ı üreten modül
 ├── convert.py                         other_formats/ -> wav/ format dönüşümü (ffmpeg ile)
 ├── config.json                        fonem eşleştirme / filtreleme ve TextGrid ayarları
+├── whisper.json                       pencerede olmayan Whisper ayarları (padding, seed, eşikler, uydurma ifadeler)
 ├── rules.json                         syllables tier'ı için C/V hece değerleri ve hece tipi kuralları
 ├── environment.yml                    "verbatim" conda ortamını oluşturmak için
 ├── run.sh                             conda ortamını etkinleştirip verbatim.py'yi çalıştıran kısayol (Linux/macOS)
@@ -223,16 +224,27 @@ bilgisayara kopyalanabilir.
   `syllables` ve `whisper` seçilidir; `segments` ve `chunks1-N` seçili
   değildir. `whisper` seçili olduğu için ilk çalıştırmada Whisper modeli
   (~3 GB) iner; istemiyorsanız işaretini kaldırın.
-- **details/ olasılık (aday) sayısı:** `details/` dosyasında her 20 ms'lik
-  kare için yazılan en olası aday sayısı (varsayılan 3, en çok 20).
-  `prob` tier'ları en fazla bu sayı kadar olabilir (sayı 2 ise `prob3`
-  seçilemez).
-- **Whisper ve Temperature blokları:** yalnızca `whisper` tier'ı
-  işaretliyse etkinleşir (bkz. [Whisper tier'ı](#whisper-tierı)).
-  Temperature bloğunda **Level** (0.0-1.0, 0.2 adımlarla, varsayılan
-  0.0) ve **Fallback** (varsayılan açık) bulunur.
+- **Min. olasılık (%)** (Tier'lar kutusunda, `prob1-3`'ün çerçevesinin
+  sağında): bir adayın `prob` tier'larında fonem olarak gösterilmesi
+  için gereken en düşük olasılık (0-100, varsayılan 1; okla 1'in altında
+  0,1'lik, üstünde 1'lik adımlarla değişir). Altındaki adaylar
+  boş bırakılır (`details/` dosyasında `<PAD>`; olasılık değeri yine
+  yazılır). 1. aday üzerinden türetilen `hold`, `segments`, `syllables`
+  ve `chunks` tier'ları da bundan etkilenir. **Tüm olasılıkları
+  (adayları) görmek için 0 yazın.** Komut satırında: `--min-confidence 0`.
+- **details/.txt dosyalarında yer alan > Olasılık sayısı:** `details/`
+  dosyasında her 20 ms'lik kare için yazılan en olası aday sayısı
+  (varsayılan 3, en çok 20). `prob` tier'ları en fazla bu sayı kadar
+  olabilir (sayı 2 ise `prob3` seçilemez).
+- **Whisper bloğu:** yalnızca `whisper` tier'ı işaretliyse etkinleşir
+  (bkz. [Whisper tier'ı](#whisper-tierı)). İçindeki Temperature
+  bölümünde **Level** (0.0-1.0, 0.2 adımlarla, varsayılan
+  0.0) ve **Fallback** (varsayılan açık) bulunur. Padding, seed ve
+  eşikler gibi diğer Whisper ayarları [whisper.json](#whisperjson)
+  dosyasındadır.
 - **Açıklamalar:** imleci bir tier'ın, alanın ya da kutunun üzerinde
-  yarım saniye tutunca ayrıntılı açıklaması küçük bir pencerede açılır.
+  yarım saniye tutunca ayrıntılı açıklaması küçük bir pencerede açılır
+  (punto: `gui.py`'de `TOOLTIP_FONT_SIZE`, varsayılan 12).
 - **TR / EN (sağ üstte):** pencerenin dili. Seçim `gui_settings.json`
   dosyasında hatırlanır. İşlem günlüğündeki program çıktıları Türkçe
   kalır; aşama satırları seçilen dilde yazılır.
@@ -247,8 +259,9 @@ Pencereyi açmadan çalıştırmak için (örn. ekransız bir sunucuda):
 
 ```bash
 python verbatim.py --no-gui --tiers hold,syllables,whisper --top-k 5 \
+  --min-confidence 1 \
   --whisper-min 10 --whisper-max 15 --long-pause-ms 250 --short-pause-ms 50 \
-  --language tr          # --no-padding ile padding kapatılır
+  --language tr          # padding vb. için: whisper.json
 ```
 
 `--tiers` verilmezse pencerenin varsayılan seçimi kullanılır (`hold`,
@@ -292,6 +305,7 @@ python verbatim.py \
   --model-dir /baska/yol/models/wav2vec2-xlsr-53-espeak-cv-ft \
   --whisper-model-dir /baska/yol/models/whisper-large-v3 \
   --config /baska/yol/config.json \
+  --whisper-config /baska/yol/whisper.json \
   --rules /baska/yol/rules.json \
   --device cpu   # veya cuda, cuda:0, mps ... (varsayılan: otomatik algıla)
 ```
@@ -391,9 +405,9 @@ aralığına yazılır.
   başındaki ve sonundaki sessizlik ayrı boş aralıklar olur, metin yalnızca
   konuşmanın başladığı ve bittiği anlar arasına yazılır (aynı sessizlik
   eşiğiyle bulunur).
-- **Padding ekle:** her parçanın başına ve sonuna 250 ms sessizlik eklenir.
-  Bu yalnızca Whisper'a verilen geçici (bellekteki) sestir; zamanlar
-  etkilenmez.
+- **Padding** (`whisper.json`: `padding`, `padding_ms`; varsayılan açık,
+  250 ms): her parçanın başına ve sonuna sessizlik eklenir. Bu yalnızca
+  Whisper'a verilen geçici (bellekteki) sestir; zamanlar etkilenmez.
 - **Dil:** varsayılan `tr`; `auto` dili Whisper'a buldurur.
 - **Temperature > Level:** Whisper'ın ilk denemedeki sıcaklığı (0.0-1.0,
   0.2 adımlarla, varsayılan 0.0). 0 en olası metni seçer; yükseldikçe
@@ -401,18 +415,19 @@ aralığına yazılır.
 - **Temperature > Fallback** (varsayılan açık): sonuç çok tekrarlıysa
   (sıkıştırma oranı 2,4'ün üstü, yani döngüye girmişse) ya da güveni
   düşükse (ortalama log olasılık -1'in altı), Whisper aynı parçayı
-  sıcaklığı 0,2 artırarak, 1,0'a kadar yeniden dener.
+  sıcaklığı 0,2 artırarak (`whisper.json`: `temperature_increment`),
+  1,0'a kadar yeniden dener. Eşikler `whisper.json`'dadır.
 - **Tekrarlanabilirlik:** 0'ın üstündeki sıcaklıklarda Whisper rastgele
   örnekleme yapar; bu yüzden her parçadan önce sabit bir rastgelelik
-  tohumu (seed, `whisper_tier.py`: `SEED = 0`) verilir. Aynı kayıt ve
+  tohumu (`whisper.json`: `seed`, varsayılan 0) verilir. Aynı kayıt ve
   aynı ayarlarla her çalıştırmada aynı sonuç alınır.
 - **Uydurmalar:** Whisper sessiz ya da belirsiz seste eğitim verisinden
   ezberlediği ifadeleri (örn. "Altyazı M.K.") uydurabilir. Bu ifadeler
-  (`config.json`: `whisper_hallucinations`) ve yeniden denemelerden sonra
+  (`whisper.json`: `hallucinations`) ve yeniden denemelerden sonra
   hâlâ döngüde kalan bölümler metinden çıkarılır, yerlerine
-  `[anlaşılmadı]` yazılır (`config.json`: `whisper_unclear_text`).
+  `[anlaşılamadı]` yazılır (`whisper.json`: `unclear_text`).
   Kekemelik gibi gerçek tekrarlar kısa olduğu sürece korunur; çok uzun
-  tekrar dizileri de `[anlaşılmadı]` olabilir.
+  tekrar dizileri de `[anlaşılamadı]` olabilir.
 
 Komut satırında: `--temperature 0.2`, `--no-temperature-fallback`.
 
@@ -432,18 +447,35 @@ kapatabilir ya da `--tiers` ile dışarıda bırakabilirsiniz.
   (boşluğa çevrilecek) sembol/özel token listesi (vurgu işaretleri,
   `<pad>`/`<s>`/`</s>`/`<unk>` özel token'ları, model diline ait
   kullanılmayan fonemler vb.).
-- `min_confidence_percent`: bir adayın gösterilmesi için gereken minimum
-  olasılık yüzdesi; altındaki adaylar boş sayılır.
 - `chunk_gap_thresholds_ms`: `chunks1`..`chunksN` tier'ları için
   kullanılan birleştirme eşikleri (milisaniye). Liste uzunluğu kadar
   `chunks` tier'ı üretilir.
-- `whisper_hallucinations`: Whisper'ın uydurduğu bilinen ifadeler. Bir
-  Whisper bölümü bunlardan birini içeriyorsa (büyük/küçük harf ve
-  noktalama yok sayılarak, tam kelime olarak) yerine
-  `whisper_unclear_text` yazılır. Liste kısaltılabilir ya da yeni
-  ifadeler eklenebilir.
-- `whisper_unclear_text`: anlaşılmayan ya da uydurma olarak işaretlenen
-  bölümlerin yerine yazılan metin (varsayılan `[anlaşılmadı]`).
+
+Minimum olasılık (eski `min_confidence_percent`) artık pencerededir
+(**Min. olasılık (%)**, varsayılan 1) ya da `--min-confidence` ile
+verilir.
+
+## whisper.json
+
+Pencerede olmayan Whisper ayarları. Dosya yoksa ya da bir anahtar
+eksikse `whisper_tier.py`'deki varsayılanlar kullanılır; tanınmayan bir
+anahtar için uyarı verilir. Temperature **Level** ve **Fallback**
+pencerededir; aşağıdakiler onlarla birlikte çalışır.
+
+| Anahtar | Varsayılan | Açıklama |
+|---|---|---|
+| `padding` | `true` | Her parçanın başına ve sonuna sessizlik eklenir (yalnızca Whisper'a verilen geçici ses; zamanlar etkilenmez). |
+| `padding_ms` | `250` | Eklenen sessizliğin süresi (ms). |
+| `seed` | `0` | Her parçadan önce verilen rastgelelik tohumu; 0'ın üstündeki sıcaklıklarda sonucun tekrarlanabilir olması için. |
+| `temperature_increment` | `0.2` | Fallback açıkken her yeniden denemede sıcaklığın artış miktarı (1.0'a kadar). `0` yeniden denemeyi kapatır. |
+| `compression_ratio_threshold` | `2.4` | Sonucun sıkıştırma oranı bunun üstündeyse (döngü/tekrar) fallback devreye girer; fallback sonrasında hâlâ üstündeyse bölüm `unclear_text` olur. |
+| `logprob_threshold` | `-1.0` | Ortalama log olasılık bunun altındaysa (düşük güven) fallback devreye girer. |
+| `no_speech_threshold` | `0.6` | "Konuşma yok" olasılığı bunun üstünde ve log olasılık düşükse parça boş sayılır. |
+| `beam_size` | `5` | Sıcaklık 0 iken beam search genişliği. |
+| `best_of` | `5` | Sıcaklık 0'dan büyükken örneklenen aday sayısı. |
+| `condition_on_previous_text` | `false` | Önceki metni bağlam olarak verme (açılırsa döngü/uydurma riski artar). |
+| `hallucinations` | (liste) | Whisper'ın uydurduğu bilinen ifadeler. Bir bölüm bunlardan birini içeriyorsa (büyük/küçük harf ve noktalama yok sayılarak, tam kelime olarak) yerine `unclear_text` yazılır. Liste kısaltılabilir ya da yeni ifadeler eklenebilir. |
+| `unclear_text` | `[anlaşılamadı]` | Anlaşılmayan ya da uydurma olarak işaretlenen bölümlerin yerine yazılan metin. |
 
 ## rules.json ve syllables
 
@@ -616,7 +648,7 @@ makilic@yahoo.com
 
 Bu paketin kendi kodu (`verbatim.py`, `gui.py`, `whisper_tier.py`,
 `syllables.py`, `convert.py`,
-`config.json`, `rules.json`, `run.sh`, `run.bat`) [GNU General Public
+`config.json`, `whisper.json`, `rules.json`, `run.sh`, `run.bat`) [GNU General Public
 License v3.0 (GPLv3)](LICENSE) ile lisanslanmıştır.
 
 Üçüncü taraf bileşenler için bkz.

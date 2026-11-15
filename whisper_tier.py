@@ -19,24 +19,29 @@
 #     Whisper'a ozgun ses verilir.
 #   - Bolme noktasi sessizligin ortasidir; parcalar birbirine bitisiktir ve
 #     tum sesi kapsar.
-#   - Padding secildiyse her parcanin basina ve sonuna 250 ms sessizlik
-#     eklenir (yalnizca bellekteki gecici ses; zamanlar etkilenmez).
+#   - Padding aciksa (whisper.json: padding, padding_ms) her parcanin basina
+#     ve sonuna 250 ms sessizlik eklenir (yalnizca bellekteki gecici ses;
+#     zamanlar etkilenmez).
 #
 # Uydurmalara (hallucination) karsi:
 #   - Sicaklik geri dusus: once t=0 denenir; sonuc cok tekrarli (sikistirma
 #     orani > 2.4) ya da dusuk guvenli (ortalama log olasilik < -1) ise
 #     Whisper ayni parcayi 0.2, 0.4 ... 1.0 sicakliklariyla yeniden dener.
-#   - Sabit tohum (SEED): 0'in ustundeki sicakliklarda ornekleme rastgele
+#   - Sabit tohum (whisper.json: seed): 0'in ustundeki sicakliklarda ornekleme rastgele
 #     oldugu icin her parcadan once ayni tohum verilir; sonuclar her
 #     calistirmada aynidir.
-#   - Bilinen uydurma ifadeler (config.json: whisper_hallucinations; orn.
+#   - Bilinen uydurma ifadeler (whisper.json: hallucinations; orn.
 #     "Altyazi M.K.") ve geri dususten sonra hala dongude kalan bolumler
-#     metinden cikarilir, yerine "[anlasilmadi]" yazilir (config.json:
-#     whisper_unclear_text).
+#     metinden cikarilir, yerine "[anlasilamadi]" yazilir (whisper.json:
+#     unclear_text).
+#
+# Arayuzde olmayan Whisper ayarlari whisper.json'dadir (bkz. README); dosya
+# yoksa ya da bir anahtar eksikse DEFAULT_SETTINGS'teki degerler kullanilir.
 #
 # Model: models/whisper-large-v3/large-v3.pt. Dosya yoksa OpenAI'nin resmi
 # adresinden indirilir (openai-whisper, SHA256 dogrulamasiyla).
 
+import json
 import os
 import re
 import sys
@@ -56,8 +61,8 @@ LOGPROB_THRESHOLD = -1.0
 NO_SPEECH_THRESHOLD = 0.6
 
 # Whisper'in sessiz ya da belirsiz seste sik uydurdugu ifadeler (cogunlukla
-# egitim verisindeki altyazi/video kapanis yazilari). config.json'daki
-# "whisper_hallucinations" listesi bunun yerine gecer.
+# egitim verisindeki altyazi/video kapanis yazilari). whisper.json'daki
+# "hallucinations" listesi bunun yerine gecer.
 DEFAULT_HALLUCINATIONS = [
     "Altyazı M.K.",
     "Altyazı",
@@ -71,12 +76,46 @@ DEFAULT_HALLUCINATIONS = [
     "Subtitles by",
     "Thanks for watching",
 ]
-DEFAULT_UNCLEAR_TEXT = "[anlaşılmadı]"
+DEFAULT_UNCLEAR_TEXT = "[anlaşılamadı]"
 
 FRAME_SEC = 0.020
 HOP_SEC = 0.010
 PADDING_SEC = 0.250
 BANDPASS_HZ = (80.0, 1000.0)
+
+# whisper.json'daki ayarlarin varsayilanlari
+DEFAULT_SETTINGS = {
+    "padding": True,
+    "padding_ms": PADDING_SEC * 1000.0,
+    "seed": SEED,
+    "temperature_increment": 0.2,
+    "compression_ratio_threshold": COMPRESSION_RATIO_THRESHOLD,
+    "logprob_threshold": LOGPROB_THRESHOLD,
+    "no_speech_threshold": NO_SPEECH_THRESHOLD,
+    "beam_size": 5,
+    "best_of": 5,
+    "condition_on_previous_text": False,
+    "hallucinations": DEFAULT_HALLUCINATIONS,
+    "unclear_text": DEFAULT_UNCLEAR_TEXT,
+}
+
+
+def load_whisper_settings(path):
+    """whisper.json'u okur; eksik anahtarlar DEFAULT_SETTINGS'ten gelir.
+    Bilinmeyen anahtar varsa uyarir (yazim hatasi olabilir)."""
+    settings = dict(DEFAULT_SETTINGS)
+    if path and os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                user = json.load(f)
+        except ValueError as exc:
+            sys.exit(f"HATA: {path} okunamadi (gecersiz JSON: {exc}).")
+        unknown = sorted(k for k in user if k not in DEFAULT_SETTINGS)
+        if unknown:
+            print(f"UYARI: {os.path.basename(path)} icinde bilinmeyen ayar(lar): "
+                  f"{', '.join(unknown)}")
+        settings.update({k: v for k, v in user.items() if k in DEFAULT_SETTINGS})
+    return settings
 
 
 # --------------------------------------------------------------------------
@@ -262,7 +301,8 @@ def _norm(text):
     return " ".join(t.split())
 
 
-def clean_segments(segments, hallucinations, unclear_text):
+def clean_segments(segments, hallucinations, unclear_text,
+                   compression_ratio_threshold=COMPRESSION_RATIO_THRESHOLD):
     """Whisper bolumlerinden (result["segments"]) metni kurar. Bilinen
     uydurma ifadeyi iceren ya da geri dususten sonra hala dongude kalan
     (sikistirma orani esigin ustunde) bolumlerin yerine unclear_text
@@ -276,7 +316,7 @@ def clean_segments(segments, hallucinations, unclear_text):
             continue
         norm = _norm(text)
         bad = any(p and (norm == p or f" {p} " in f" {norm} ") for p in patterns)
-        bad = bad or seg.get("compression_ratio", 0) > COMPRESSION_RATIO_THRESHOLD
+        bad = bad or seg.get("compression_ratio", 0) > compression_ratio_threshold
         if bad:
             flagged += 1
             print(f"      [anlasilmadi olarak isaretlendi] {text[:80]}")
@@ -296,35 +336,37 @@ def _seed_everything(seed):
     torch.manual_seed(seed)          # CUDA tohumlarini da ayarlar
 
 
-def temperature_schedule(start=0.0, fallback=True):
-    """Whisper'a verilecek sicakliklar: geri dusus aciksa start'tan 0.2
-    adimlarla 1.0'a kadar, kapaliysa yalnizca start."""
+def temperature_schedule(start=0.0, fallback=True, step=0.2):
+    """Whisper'a verilecek sicakliklar: geri dusus aciksa start'tan step
+    adimlarla 1.0'a kadar, kapaliysa (ya da step <= 0 ise) yalnizca start."""
     start = min(max(float(start), 0.0), 1.0)
-    if not fallback:
+    step = float(step)
+    if not fallback or step <= 0:
         return (start,)
     temps = [start]
     t = start
-    while t + 0.2 <= 1.0 + 1e-9:
-        t = round(t + 0.2, 2)
+    while t + step <= 1.0 + 1e-9:
+        t = round(t + step, 2)
         temps.append(t)
     return tuple(temps)
 
 
-def transcribe_pieces(model, signal, sr, points, language, padding,
-                      stage=None, check_cancel=None,
-                      hallucinations=None, unclear_text=DEFAULT_UNCLEAR_TEXT,
-                      temperatures=TEMPERATURES):
+def transcribe_pieces(model, signal, sr, points, language, settings=None,
+                      stage=None, check_cancel=None, temperatures=TEMPERATURES):
     """Her parcayi Whisper'a verir. [{"xmin", "xmax", "text"}] dondurur.
     Metinli her araligin basinda ve sonunda bir sinir vardir: parcanin
     basindaki ve sonundaki sessizlik ayri bos araliklar olur, metin yalnizca
     konusmanin basladigi ve bittigi anlar arasina yazilir.
     stage(anahtar, **degerler) her parcada asamayi bildirir; check_cancel() kullanici
-    durdurduysa istisna firlatir (parcalar arasinda cagrilir)."""
+    durdurduysa istisna firlatir (parcalar arasinda cagrilir).
+    settings: load_whisper_settings() sonucu (None ise varsayilanlar)."""
+    cfg = dict(DEFAULT_SETTINGS, **(settings or {}))
+    padding = bool(cfg["padding"]) and float(cfg["padding_ms"]) > 0
     duration = len(signal) / sr
     edges = [0.0] + [t for t, _ in points] + [duration]
     lang = None if language in ("", "auto") else language
     silences = _merge_silences(find_silences(signal, sr, 0))
-    pad = np.zeros(int(round(PADDING_SEC * sr)), dtype=np.float32)
+    pad = np.zeros(int(round(float(cfg["padding_ms"]) / 1000.0 * sr)), dtype=np.float32)
     fp16 = str(getattr(model, "device", "cpu")).startswith("cuda")
     out = []
     for i in range(len(edges) - 1):
@@ -340,18 +382,20 @@ def transcribe_pieces(model, signal, sr, points, language, padding,
             # Geri dususte 0'in ustundeki sicakliklarda ornekleme rastgeledir;
             # her parcadan once ayni tohum verilerek sonuc her calistirmada
             # (ve parcalarin sirasindan bagimsiz olarak) ayni olur.
-            _seed_everything(SEED)
+            _seed_everything(int(cfg["seed"]))
             result = model.transcribe(
-                audio, language=lang, task="transcribe", beam_size=5, best_of=5,
+                audio, language=lang, task="transcribe",
+                beam_size=int(cfg["beam_size"]), best_of=int(cfg["best_of"]),
                 temperature=temperatures,
-                compression_ratio_threshold=COMPRESSION_RATIO_THRESHOLD,
-                logprob_threshold=LOGPROB_THRESHOLD,
-                no_speech_threshold=NO_SPEECH_THRESHOLD,
-                condition_on_previous_text=False, fp16=fp16, verbose=None)
+                compression_ratio_threshold=cfg["compression_ratio_threshold"],
+                logprob_threshold=cfg["logprob_threshold"],
+                no_speech_threshold=cfg["no_speech_threshold"],
+                condition_on_previous_text=bool(cfg["condition_on_previous_text"]),
+                fp16=fp16, verbose=None)
             text, _ = clean_segments(
-                result.get("segments", []),
-                DEFAULT_HALLUCINATIONS if hallucinations is None else hallucinations,
-                unclear_text)
+                result.get("segments", []), cfg["hallucinations"] or [],
+                cfg["unclear_text"] or DEFAULT_UNCLEAR_TEXT,
+                cfg["compression_ratio_threshold"])
         if text:
             s0, s1 = _speech_span(t0, t1, silences)
             pieces = [(t0, s0, ""), (s0, s1, text), (s1, t1, "")]
@@ -375,10 +419,10 @@ def whisper_intervals(model, signal, sr, opts):
                           opts["long_pause_ms"], opts["short_pause_ms"])
     for t, why in points:
         print(f"    bolme: {t:.2f} s ({why})")
-    return transcribe_pieces(model, signal, sr, points, opts["language"], opts["padding"],
+    settings = opts.get("whisper_settings") or DEFAULT_SETTINGS
+    return transcribe_pieces(model, signal, sr, points, opts["language"], settings,
                              opts.get("stage"), opts.get("check_cancel"),
-                             opts.get("hallucinations"),
-                             opts.get("unclear_text") or DEFAULT_UNCLEAR_TEXT,
                              temperature_schedule(opts.get("temperature", 0.0),
-                                                  opts.get("temp_fallback", True)))
+                                                  opts.get("temp_fallback", True),
+                                                  settings.get("temperature_increment", 0.2)))
 
