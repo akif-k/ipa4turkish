@@ -46,7 +46,8 @@ ipa_verbatim/
 ├── README.md / README.en.md           this document (Turkish / English)
 ├── CITATION.cff                       citation metadata (Citation File Format)
 ├── icons/                             application icons (for desktop shortcuts):
-│                                       ipa4turkish.ico for Windows, ipa4turkish.png for Linux/macOS
+│                                       ipa4turkish.ico for Windows, ubuntu/ipa4turkish.png for Ubuntu/Linux,
+│                                       macos/ipa4turkish.icns for macOS
 ├── models/                            folder for model files (input, empty; automatically filled on
 │                                       first run with the wav2vec2-xlsr-53-espeak-cv-ft/ subfolder,
 │                                       see Setup > Model files)
