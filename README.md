@@ -47,7 +47,8 @@ ipa_verbatim/
 ├── README.md / README.en.md           bu belge (Türkçe / İngilizce)
 ├── CITATION.cff                       atıf bilgisi (Citation File Format)
 ├── icons/                             uygulama simgeleri (masaüstü kısayolları için):
-│                                       ipa4turkish.ico Windows, ipa4turkish.png Linux/macOS
+│                                       ipa4turkish.ico Windows, ubuntu/ipa4turkish.png Ubuntu/Linux,
+│                                       macos/ipa4turkish.icns macOS
 ├── models/                            model dosyaları için klasör (girdi, boş; ilk çalıştırmada
 │                                       wav2vec2-xlsr-53-espeak-cv-ft/ alt klasörüyle otomatik doldurulur,
 │                                       bkz. Kurulum > Model dosyaları)
