@@ -41,13 +41,11 @@ ipa_verbatim/
 ├── environment.yml                    to create the "verbatim" conda environment
 ├── run.sh                             shortcut that activates the conda environment and runs verbatim.py (Linux/macOS)
 ├── run.bat                            the same shortcut for Windows
+├── run_hidden.vbs                     starts run.bat without a cmd window (for the Windows desktop shortcut)
 ├── LICENSE                            this package's own code license (GPLv3)
 ├── THIRD-PARTY-NOTICES.txt            third-party components license info
 ├── README.md / README.en.md           this document (Turkish / English)
 ├── CITATION.cff                       citation metadata (Citation File Format)
-├── icons/                             application icons (for desktop shortcuts):
-│                                       windows/ipa4turkish.ico for Windows, ubuntu/ipa4turkish.png for Ubuntu/Linux,
-│                                       macos/ipa4turkish.icns for macOS
 ├── models/                            folder for model files (input, empty; automatically filled on
 │                                       first run with the wav2vec2-xlsr-53-espeak-cv-ft/ subfolder,
 │                                       see Setup > Model files)
@@ -217,7 +215,7 @@ folder can also be copied to another computer.
 4. Results are written to the `tg/`, `txt/`, and `details/` folders
    (and to `whisper/tg/` and `whisper/txt/` if the whisper tier is
    selected); progress is shown
-   in the terminal with a progress bar.
+   in the window's processing log.
 5. When run via `run.sh` / `run.bat`, once processing completes
    without errors the `ipa_verbatim` folder automatically opens in the
    file manager (this does not happen if you run `python verbatim.py`
@@ -258,7 +256,12 @@ folder can also be copied to another computer.
 - **Status (right side):** the current stage (e.g. loading the model,
   computing phoneme probabilities, Whisper piece 2/5), the file being
   processed and its position, a file progress bar, and the processing
-  log.
+  log. The log shows all of the program's output: what was written
+  before the window opened, progress bars, library (torch,
+  transformers) warnings, and tracebacks, so there is no need to watch
+  a separate terminal/cmd window (see [Desktop
+  shortcut](#desktop-shortcut)). Only rare lines written directly by C
+  libraries do not reach the log.
 - While processing, the settings are locked; **Cancel** becomes
   **Stop** and stops processing once the current step finishes. When
   processing ends, a **Close** button appears.
@@ -277,11 +280,27 @@ Without `--tiers`, the window's default selection is used (`hold`,
 
 ### Desktop shortcut
 
+The shortcuts start the program without a terminal/cmd window; all of
+the program's output appears in the window's processing log. If an
+error happens before the window can open (e.g. the conda environment is
+missing, a Python package is missing), the error message is shown in a
+separate small window.
+
 **Linux:** A `.desktop` shortcut that runs `run.sh` can be added to the
 desktop manually (this is specific to freedesktop/GNOME, does not work
-on macOS or Windows — see below). If the file manager shows an "Allow
-Launching" warning on the first double-click, right-click the shortcut
-and select **Allow Launching**.
+on macOS or Windows — see below). To avoid opening a terminal, the
+shortcut needs these two lines:
+
+```ini
+Exec=env IPA_VERBATIM_HIDDEN=1 bash "/home/USER/ipa_verbatim/run.sh"
+Terminal=false
+```
+
+`IPA_VERBATIM_HIDDEN=1` makes errors that happen before the window opens
+appear in a message box (for conda errors in `run.sh`, `zenity` if
+available, otherwise a `notify-send` notification). If the file manager
+shows an "Allow Launching" warning on the first double-click,
+right-click the shortcut and select **Allow Launching**.
 
 **macOS:** `.desktop` files are not supported. To make `run.sh`
 double-clickable from Finder, it's enough to create a symbolic link
@@ -293,9 +312,35 @@ ln -s ~/ipa_verbatim/run.sh ~/Desktop/ipa_verbatim.command
 chmod +x ~/ipa_verbatim/run.sh
 ```
 
-**Windows:** Right-click `run.bat` and select **Send to > Desktop
-(create shortcut)** to create a standard Windows shortcut; no
-additional script is needed.
+A `.command` file always opens a Terminal window. To run without
+Terminal, create a small `.app` bundle on the desktop (once; it calls
+`run.sh`, so it stays up to date when `run.sh` is updated):
+
+```bash
+APP=~/Desktop/ipa4turkish.app
+mkdir -p "$APP/Contents/MacOS"
+printf '#!/bin/bash\nexport IPA_VERBATIM_HIDDEN=1\ncd "$HOME/ipa_verbatim" && exec bash ./run.sh\n' \
+  > "$APP/Contents/MacOS/ipa4turkish"
+chmod +x "$APP/Contents/MacOS/ipa4turkish" ~/ipa_verbatim/run.sh
+cat > "$APP/Contents/Info.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>ipa4turkish</string>
+<key>CFBundleExecutable</key><string>ipa4turkish</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+</dict></plist>
+EOF
+```
+
+If macOS warns on first launch: right-click `ipa4turkish.app` >
+**Open**. Errors that happen before the window opens (e.g. conda not
+found) are shown in a message box.
+
+**Windows:** Right-click `run_hidden.vbs` and select **Send to > Desktop
+(create shortcut)**. This file runs `run.bat` without opening a cmd
+window. (Running
+`run.bat` itself shows the cmd window, which is useful when
+troubleshooting.)
 
 ### Changing folder locations
 
@@ -623,7 +668,7 @@ shortcut):
 | espeak-ng installation | `sudo apt install espeak-ng` (or your distro's package manager) | `brew install espeak-ng` | See below |
 | Opening the folder afterward | `xdg-open` (automatic inside run.sh) | `open` (automatic inside run.sh) | `explorer` (automatic inside run.bat) |
 | GPU acceleration | NVIDIA + CUDA (`cuda`) | Apple Silicon (`mps`) | NVIDIA + CUDA (`cuda`) |
-| Desktop shortcut | `.desktop` file (see above) | `.command` symbolic link (see above) | "Create shortcut" from `run.bat` (see above) |
+| Desktop shortcut | `.desktop` file, `Terminal=false` (see above) | `ipa4turkish.app` bundle (see above) | "Create shortcut" from `run_hidden.vbs` (see above) |
 
 `run.sh` tries the `xdg-open` and `open` commands in order, so you
 don't need to change anything by hand between Linux/macOS — the script
@@ -673,7 +718,7 @@ makilic@yahoo.com
 
 This package's own code (`verbatim.py`, `gui.py`, `whisper_tier.py`,
 `syllables.py`, `convert.py`,
-`config.json`, `whisper.json`, `rules.json`, `run.sh`, `run.bat`) is licensed under the
+`config.json`, `whisper.json`, `rules.json`, `run.sh`, `run.bat`, `run_hidden.vbs`) is licensed under the
 [GNU General Public License v3.0 (GPLv3)](LICENSE).
 
 For third-party components, see

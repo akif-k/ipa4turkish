@@ -44,6 +44,17 @@ import glob
 import os
 import sys
 
+# Pencereyle calisirken tum cikti (kutuphane uyarilari ve hata izleri dahil)
+# pencerenin islem gunlugune gitsin: yakalama torch/transformers ice
+# aktarilmadan ONCE baslamali (bkz. gui.start_capture).
+_gui = None
+if "--no-gui" not in sys.argv:
+    try:
+        import gui as _gui
+        _gui.start_capture()
+    except ImportError:          # tkinter yok (orn. sunucu)
+        _gui = None
+
 import numpy as np
 import torch
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
@@ -504,6 +515,9 @@ def main():
                        lambda chosen, ui: run_pipeline(args, chosen, config,
                                                        chunk_gap_thresholds_ms, ui))
     except Exception as exc:  # ekran yok vb. (tkinter.TclError)
+        if _gui is not None and _gui.is_hidden():
+            # Konsol penceresi yok: islemi gorunmeden yurutmek yerine dur
+            sys.exit(f"HATA: pencere acilamadi ({exc}).")
         print(f"UYARI: pencere acilamadi ({exc}); komut satiri ayarlari kullaniliyor.")
         code = run_console(args, opts, config, chunk_gap_thresholds_ms)
     if code == 3:
@@ -746,4 +760,11 @@ def run_pipeline(args, opts, config, chunk_gap_thresholds_ms, ui):
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit as exc:
+        # Pencere acilmadan "HATA: ..." ile cikildiysa ve konsol penceresi
+        # yoksa (gizli baslatici) mesaj ayri bir hata penceresinde gosterilir.
+        if _gui is not None and exc.code not in (None, 0, 3):
+            _gui.report_startup_error(exc.code if isinstance(exc.code, str) else None)
+        raise

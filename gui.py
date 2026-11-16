@@ -69,9 +69,9 @@ STRINGS = {
         "title": "ipa4turkish: IPA ile verbatim transkripsiyon",
         "tiers": "Tier'lar",
         "hold": "Uzatılan fonemler",
-        "prob1": "Birinci ihtimal",
-        "prob2": "İkinci ihtimal",
-        "prob3": "Üçüncü ihtimal",
+        "prob1": "Birinci olasılık",
+        "prob2": "İkinci olasılık",
+        "prob3": "Üçüncü olasılık",
         "segments": "20 ms'lik parçalar",
         "syllables": "Heceler",
         "chunks": "Gruplandırma (≤ {ms} ms parçalar birleştirilir)",
@@ -369,21 +369,58 @@ class ConsoleUI:
         pass
 
 
-class _QueueStream:
-    """print/tqdm ciktisini hem asil konsola hem pencerenin gunlugune yollar."""
+# --------------------------------------------------------------------------
+# Cikti yakalama: programin tum Python ciktisi (print, tqdm, uyarilar,
+# transformers/torch gunluk mesajlari, hata izleri) pencerenin islem
+# gunlugune gider. verbatim.py bunu en basta, torch/transformers ice
+# aktarilmadan once baslatir; pencere acilana kadarki cikti bekletilir ve
+# pencere acilinca gunluge yazilir. Asil konsol (varsa) ayni ciktiyi
+# almaya devam eder.
+# --------------------------------------------------------------------------
 
-    def __init__(self, q, original):
-        self.q = q
+# Baslaticilar (run_hidden.vbs, gizli .desktop kisayolu) konsol penceresi
+# olmadan calistirirken bunu 1 yapar: pencere acilmadan olusan hatalar
+# o zaman ayri bir hata penceresinde gosterilir.
+HIDDEN_ENV = "IPA_VERBATIM_HIDDEN"
+_BUFFER_LIMIT = 200_000          # pencere acilana kadar saklanan en fazla karakter
+
+_cap_lock = threading.Lock()
+_cap_buffer = []
+_cap_state = {"installed": False, "sink": None, "window_shown": False,
+              "orig_err": None}
+
+
+def _cap_route(s):
+    with _cap_lock:
+        sink = _cap_state["sink"]
+        if sink is None:
+            _cap_buffer.append(s)
+            total = sum(len(x) for x in _cap_buffer)
+            while total > _BUFFER_LIMIT and len(_cap_buffer) > 1:
+                total -= len(_cap_buffer.pop(0))
+            return
+    try:
+        sink(s)
+    except Exception:
+        pass
+
+
+class _CaptureStream:
+    """sys.stdout / sys.stderr yerine gecer: yazilani asil konsola (varsa)
+    ve pencerenin gunlugune (pencere yoksa bekleme tamponuna) yollar."""
+
+    def __init__(self, original):
         self.original = original
 
     def write(self, s):
-        if s:
-            self.q.put(("log", s))
-            if self.original is not None:
-                try:
-                    self.original.write(s)
-                except Exception:
-                    pass
+        if not s:
+            return 0
+        if self.original is not None:
+            try:
+                self.original.write(s)
+            except Exception:
+                pass
+        _cap_route(s)
         return len(s)
 
     def flush(self):
@@ -395,6 +432,106 @@ class _QueueStream:
 
     def isatty(self):
         return False
+
+    @property
+    def encoding(self):
+        return getattr(self.original, "encoding", None) or "utf-8"
+
+    def fileno(self):
+        if self.original is None:
+            import io
+            raise io.UnsupportedOperation("fileno")
+        return self.original.fileno()
+
+    def __getattr__(self, name):
+        if self.original is None:
+            raise AttributeError(name)
+        return getattr(self.original, name)
+
+
+def is_hidden():
+    """Konsol penceresi yok mu (gizli baslatici ya da pythonw)?"""
+    return os.environ.get(HIDDEN_ENV) == "1" or _cap_state["orig_err"] is None
+
+
+def start_capture():
+    """sys.stdout/sys.stderr'i yakalamaya baslar (bir kez). torch ve
+    transformers'tan ONCE cagrilmali: gunluk (logging) ve tqdm akislari ice
+    aktarilirken sys.stderr'e baglanir."""
+    if _cap_state["installed"]:
+        return
+    _cap_state["installed"] = True
+    _cap_state["orig_err"] = sys.stderr
+    sys.stdout = _CaptureStream(sys.stdout)
+    sys.stderr = _CaptureStream(sys.stderr)
+    previous_hook = sys.excepthook
+
+    def hook(exc_type, exc, tb):
+        previous_hook(exc_type, exc, tb)      # hata izi sys.stderr'e (yakalanir)
+        if not issubclass(exc_type, KeyboardInterrupt):
+            report_startup_error()
+
+    sys.excepthook = hook
+
+
+def _attach_sink(sink):
+    """Pencere acilinca: bekleyen ciktiyi ve bundan sonrakini sink'e yollar."""
+    with _cap_lock:
+        pending = "".join(_cap_buffer)
+        _cap_buffer.clear()
+        _cap_state["sink"] = sink
+    if pending:
+        sink(pending)
+
+
+def _detach_sink():
+    with _cap_lock:
+        _cap_state["sink"] = None
+
+
+def captured_text():
+    with _cap_lock:
+        return "".join(_cap_buffer)
+
+
+def report_startup_error(message=None):
+    """Pencere hic acilmadan program hatayla bittiyse ve konsol penceresi
+    yoksa (gizli baslatici), hata mesajini ve o ana kadarki ciktiyi ayri
+    bir pencerede gosterir; aksi halde hicbir sey yapmaz."""
+    if not _cap_state["installed"] or _cap_state["window_shown"] or not is_hidden():
+        return
+    text = captured_text()
+    if message and message not in text:
+        text = (text + "\n" + message).strip()
+    lang = _load_ui_lang()
+    title = {"tr": "ipa4turkish: başlatılamadı",
+             "en": "ipa4turkish: could not start"}[lang]
+    intro = {"tr": "Program pencere açılmadan bir hatayla sonlandı. Ayrıntılar:",
+             "en": "The program stopped with an error before its window opened. Details:"}[lang]
+    try:
+        root = tk.Tk()
+        root.title(title)
+        frame = ttk.Frame(root, padding=12)
+        frame.grid(sticky="nsew")
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(1, weight=1)
+        ttk.Label(frame, text=intro).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        box = tk.Text(frame, width=110, height=24, wrap="word", font=("Consolas", LOG_FONT_SIZE))
+        box.insert("1.0", text or "-")
+        box.configure(state="disabled")
+        box.see("end")
+        box.grid(row=1, column=0, sticky="nsew")
+        sb = ttk.Scrollbar(frame, orient="vertical", command=box.yview)
+        sb.grid(row=1, column=1, sticky="ns")
+        box.configure(yscrollcommand=sb.set)
+        ttk.Button(frame, text=STRINGS[lang]["close"], command=root.destroy).grid(
+            row=2, column=0, columnspan=2, sticky="e", pady=(10, 0))
+        root.bind("<Escape>", lambda _e: root.destroy())
+        root.mainloop()
+    except Exception:
+        pass
 
 
 class _WindowUI:
@@ -444,6 +581,10 @@ def run_app(chunk_thresholds_ms, defaults, worker):
              "close_when_done": False}
     q = queue.Queue()
     cancel_event = threading.Event()
+    # Tum cikti (pencere acilmadan oncekiler dahil) islem gunlugune
+    start_capture()
+    _cap_state["window_shown"] = True
+    _attach_sink(lambda s: q.put(("log", s)))
 
     def t(key):
         return STRINGS[ui_lang.get()][key]
@@ -741,10 +882,8 @@ def run_app(chunk_thresholds_ms, defaults, worker):
         return values
 
     def run_worker(values):
+        # Ciktinin gunluge gitmesi start_capture() ile zaten ayarli
         ui = _WindowUI(q, cancel_event)
-        old_out, old_err = sys.stdout, sys.stderr
-        sys.stdout = _QueueStream(q, old_out)
-        sys.stderr = _QueueStream(q, old_err)
         code = EXIT_OK
         try:
             worker(values, ui)
@@ -758,8 +897,6 @@ def run_app(chunk_thresholds_ms, defaults, worker):
         except Exception:
             code = EXIT_ERROR
             q.put(("log", traceback.format_exc()))
-        finally:
-            sys.stdout, sys.stderr = old_out, old_err
         q.put(("done", code))
 
     def on_continue():
@@ -842,5 +979,8 @@ def run_app(chunk_thresholds_ms, defaults, worker):
     root.protocol("WM_DELETE_WINDOW", on_close)
     root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
     root.after(100, poll)
-    root.mainloop()
+    try:
+        root.mainloop()
+    finally:
+        _detach_sink()
     return state["exit"]
