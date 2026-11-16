@@ -42,13 +42,11 @@ ipa_verbatim/
 ├── environment.yml                    "verbatim" conda ortamını oluşturmak için
 ├── run.sh                             conda ortamını etkinleştirip verbatim.py'yi çalıştıran kısayol (Linux/macOS)
 ├── run.bat                            aynı kısayolun Windows karşılığı
+├── run_hidden.vbs                     run.bat'ı cmd penceresi açmadan başlatır (Windows masaüstü kısayolu için)
 ├── LICENSE                            bu paketin kendi kodunun lisansı (GPLv3)
 ├── THIRD-PARTY-NOTICES.txt            üçüncü taraf bileşenlerin lisans bilgisi (İngilizce)
 ├── README.md / README.en.md           bu belge (Türkçe / İngilizce)
 ├── CITATION.cff                       atıf bilgisi (Citation File Format)
-├── icons/                             uygulama simgeleri (masaüstü kısayolları için):
-│                                       windows/ipa4turkish.ico Windows, ubuntu/ipa4turkish.png Ubuntu/Linux,
-│                                       macos/ipa4turkish.icns macOS
 ├── models/                            model dosyaları için klasör (girdi, boş; ilk çalıştırmada
 │                                       wav2vec2-xlsr-53-espeak-cv-ft/ alt klasörüyle otomatik doldurulur,
 │                                       bkz. Kurulum > Model dosyaları)
@@ -212,8 +210,8 @@ bilgisayara kopyalanabilir.
    **İşlem durumu** panelinde ilerlemeyi gösterir. **İptal et** işlem
    başlamadan pencereyi kapatır.
 4. Sonuçlar `tg/`, `txt/` ve `details/` klasörlerine (whisper tier'ı
-   seçildiyse ayrıca `whisper/tg/` ve `whisper/txt/` klasörlerine) yazılır; ilerleme terminalde
-   bir ilerleme çubuğu ile gösterilir.
+   seçildiyse ayrıca `whisper/tg/` ve `whisper/txt/` klasörlerine) yazılır; ilerleme
+   pencerenin işlem günlüğünde gösterilir.
 5. `run.sh` / `run.bat` ile çalıştırıldığında, işlem hatasız tamamlanınca
    `ipa_verbatim` klasörü dosya yöneticisinde otomatik olarak açılır
    (`python verbatim.py` ile doğrudan çalıştırırsanız bu olmaz).
@@ -251,7 +249,12 @@ bilgisayara kopyalanabilir.
   kalır; aşama satırları seçilen dilde yazılır.
 - **İşlem durumu (sağda):** o anki aşama (örn. model yükleniyor, fonem
   olasılıkları hesaplanıyor, Whisper parça 2/5), üzerinde çalışılan dosya
-  ve sırası, dosya ilerleme çubuğu ve işlem günlüğü.
+  ve sırası, dosya ilerleme çubuğu ve işlem günlüğü. Günlükte programın
+  tüm çıktısı görünür: pencere açılmadan önce yazılanlar, ilerleme
+  çubukları, kütüphane (torch, transformers) uyarıları ve hata izleri.
+  Bu yüzden ayrıca bir terminal/cmd penceresine bakmak gerekmez (bkz.
+  [Masaüstü kısayolu](#masaüstü-kısayolu)). Yalnızca C kütüphanelerinin
+  doğrudan yazdığı nadir satırlar günlüğe düşmez.
 - İşlem sırasında ayarlar kilitlenir; **İptal et** düğmesi **Durdur**
   olur ve işlemi o anki adım bitince durdurur. İşlem bitince **Kapat**
   düğmesi çıkar.
@@ -270,11 +273,25 @@ python verbatim.py --no-gui --tiers hold,syllables,whisper --top-k 5 \
 
 ### Masaüstü kısayolu
 
+Kısayollar programı terminal/cmd penceresi açmadan başlatır; programın
+tüm çıktısı pencerenin işlem günlüğünde görünür. Pencere daha açılamadan
+bir hata olursa (örn. conda ortamı bulunamadı, Python paketi eksik)
+hata mesajı ayrı küçük bir pencerede gösterilir.
+
 **Linux:** `run.sh`'ı çalıştıran bir `.desktop` kısayolu masaüstüne elle
 eklenebilir (freedesktop/GNOME'a özgüdür, macOS ve Windows'ta çalışmaz —
-aşağıya bakın). İlk çift tıklamada dosya yöneticisi "Başlatmaya izin
-ver" uyarısı gösterirse, kısayola sağ tıkla > **Başlatmaya izin ver**
-seçilmelidir.
+aşağıya bakın). Terminal açılmaması için kısayolda şu iki satır olmalı:
+
+```ini
+Exec=env IPA_VERBATIM_HIDDEN=1 bash "/home/KULLANICI/ipa_verbatim/run.sh"
+Terminal=false
+```
+
+`IPA_VERBATIM_HIDDEN=1`, pencere açılmadan oluşan hataların bir mesaj
+kutusunda gösterilmesini sağlar (`run.sh`'taki conda hataları için
+`zenity` varsa onu, yoksa `notify-send` bildirimini kullanır). İlk çift
+tıklamada dosya yöneticisi "Başlatmaya izin ver" uyarısı gösterirse,
+kısayola sağ tıkla > **Başlatmaya izin ver** seçilmelidir.
 
 **macOS:** `.desktop` dosyaları desteklenmez. `run.sh`'ı Finder'dan çift
 tıklanabilir yapmak için `.command` uzantılı bir sembolik bağlantı
@@ -286,9 +303,35 @@ ln -s ~/ipa_verbatim/run.sh ~/Desktop/ipa_verbatim.command
 chmod +x ~/ipa_verbatim/run.sh
 ```
 
-**Windows:** `run.bat` dosyasına sağ tıklayıp **Gönder > Masaüstü
-(kısayol oluştur)** seçilerek standart bir Windows kısayolu
-oluşturulabilir; ayrıca bir betik gerekmez.
+`.command` dosyası her zaman bir Terminal penceresi açar. Terminal
+açmadan çalıştırmak için masaüstüne küçük bir `.app` paketi oluşturun
+(bir kez; `run.sh`'ı çağırdığı için `run.sh` güncellense de güncel
+kalır):
+
+```bash
+APP=~/Desktop/ipa4turkish.app
+mkdir -p "$APP/Contents/MacOS"
+printf '#!/bin/bash\nexport IPA_VERBATIM_HIDDEN=1\ncd "$HOME/ipa_verbatim" && exec bash ./run.sh\n' \
+  > "$APP/Contents/MacOS/ipa4turkish"
+chmod +x "$APP/Contents/MacOS/ipa4turkish" ~/ipa_verbatim/run.sh
+cat > "$APP/Contents/Info.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>ipa4turkish</string>
+<key>CFBundleExecutable</key><string>ipa4turkish</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+</dict></plist>
+EOF
+```
+
+İlk açılışta macOS uyarı verirse: `ipa4turkish.app`'e sağ tıkla >
+**Aç**. Pencere açılmadan oluşan hatalar (örn. conda bulunamadı) bir
+mesaj kutusunda gösterilir.
+
+**Windows:** `run_hidden.vbs` dosyasına sağ tıklayıp **Gönder > Masaüstü
+(kısayol oluştur)** seçilerek bir kısayol oluşturulur. Bu dosya
+`run.bat`'ı cmd penceresi açmadan çalıştırır. (`run.bat`'ın kendisini
+çalıştırmak cmd penceresini gösterir; sorun ararken işe yarar.)
 
 ### Klasör konumlarını değiştirme
 
@@ -602,7 +645,7 @@ farklarıdır:
 | espeak-ng kurulumu | `sudo apt install espeak-ng` (veya dağıtımınızın paket yöneticisi) | `brew install espeak-ng` | Aşağıya bakın |
 | İşlem sonunda klasör açma | `xdg-open` (run.sh içinde otomatik) | `open` (run.sh içinde otomatik) | `explorer` (run.bat içinde otomatik) |
 | GPU hızlandırma | NVIDIA + CUDA (`cuda`) | Apple Silicon (`mps`) | NVIDIA + CUDA (`cuda`) |
-| Masaüstü kısayolu | `.desktop` dosyası (bkz. yukarıda) | `.command` sembolik bağlantısı (bkz. yukarıda) | `run.bat`'tan "Kısayol oluştur" (bkz. yukarıda) |
+| Masaüstü kısayolu | `.desktop` dosyası, `Terminal=false` (bkz. yukarıda) | `ipa4turkish.app` paketi (bkz. yukarıda) | `run_hidden.vbs`'ten "Kısayol oluştur" (bkz. yukarıda) |
 
 `run.sh`, `xdg-open` ve `open` komutlarını sırayla dener, bu yüzden
 Linux/macOS arasında elle bir şey değiştirmeniz gerekmez — betik hangi
@@ -649,7 +692,7 @@ makilic@yahoo.com
 
 Bu paketin kendi kodu (`verbatim.py`, `gui.py`, `whisper_tier.py`,
 `syllables.py`, `convert.py`,
-`config.json`, `whisper.json`, `rules.json`, `run.sh`, `run.bat`) [GNU General Public
+`config.json`, `whisper.json`, `rules.json`, `run.sh`, `run.bat`, `run_hidden.vbs`) [GNU General Public
 License v3.0 (GPLv3)](LICENSE) ile lisanslanmıştır.
 
 Üçüncü taraf bileşenler için bkz.
